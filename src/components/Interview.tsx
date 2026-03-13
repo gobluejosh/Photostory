@@ -8,6 +8,14 @@ interface Question {
   question: string;
 }
 
+const fallbackQuestions: Question[] = [
+  { id: "story", question: "What's the story behind these photos? What was the occasion?" },
+  { id: "people", question: "Who are the key people in these photos, and who should be featured most prominently?" },
+  { id: "preferences", question: "Do you prefer more people-focused shots or scenery/atmosphere? And should the book flow chronologically or by theme?" },
+  { id: "mood", question: "What mood or feeling should the book evoke — playful, nostalgic, elegant, adventurous?" },
+  { id: "must_haves", question: "Are there any specific moments or people that absolutely must be included, or anything you'd like left out?" },
+];
+
 export default function Interview() {
   const { state, dispatch } = useApp();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -19,9 +27,12 @@ export default function Interview() {
   useEffect(() => {
     async function fetchQuestions() {
       try {
-        const sampleThumbnails = state.photos
-          .slice(0, 6)
-          .map((p) => p.thumbnailDataUrl);
+        // Send a diverse sample: pick evenly spaced photos across the collection
+        const step = Math.max(1, Math.floor(state.photos.length / 12));
+        const sampleThumbnails = Array.from(
+          { length: Math.min(12, state.photos.length) },
+          (_, i) => state.photos[Math.min(i * step, state.photos.length - 1)].thumbnailDataUrl
+        );
 
         const res = await fetch("/api/interview", {
           method: "POST",
@@ -36,21 +47,10 @@ export default function Interview() {
         if (data.questions && data.questions.length > 0) {
           setQuestions(data.questions);
         } else {
-          // Fallback questions
-          setQuestions([
-            { id: "occasion", question: "What's the occasion or story behind these photos?" },
-            { id: "mood", question: "What mood or feeling do you want the book to capture?" },
-            { id: "mustInclude", question: "Is there anyone or anything that must be prominently featured?" },
-            { id: "additional", question: "Anything else I should know to make this book perfect for you?" },
-          ]);
+          setQuestions(fallbackQuestions);
         }
       } catch {
-        setQuestions([
-          { id: "occasion", question: "What's the occasion or story behind these photos?" },
-          { id: "mood", question: "What mood or feeling do you want the book to capture?" },
-          { id: "mustInclude", question: "Is there anyone or anything that must be prominently featured?" },
-          { id: "additional", question: "Anything else I should know to make this book perfect for you?" },
-        ]);
+        setQuestions(fallbackQuestions);
       } finally {
         setLoading(false);
       }
@@ -68,16 +68,17 @@ export default function Interview() {
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      // All questions answered - map to interview answers
-      const keys = questions.map((q) => q.id);
+      // Build Q&A pairs and a formatted summary for downstream prompts
+      const qaPairs = questions.map((q) => ({
+        question: q.question,
+        answer: newAnswers[q.id] || "",
+      }));
+      const summary = qaPairs
+        .map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`)
+        .join("\n\n");
       dispatch({
         type: "SET_INTERVIEW_ANSWERS",
-        answers: {
-          occasion: newAnswers[keys[0]] || "",
-          mood: newAnswers[keys[1]] || "",
-          mustInclude: newAnswers[keys[2]] || "",
-          additionalContext: keys.slice(3).map((k) => newAnswers[k] || "").join(". "),
-        },
+        answers: { qaPairs, summary },
       });
       dispatch({ type: "SET_STEP", step: "curating" });
     }

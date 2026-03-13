@@ -7,13 +7,12 @@ const client = new Anthropic();
 export async function POST(req: NextRequest) {
   try {
     const { instruction, currentBook, availablePhotos, photoScores, interviewAnswers, generateInitial } = await req.json();
-    // availablePhotos: Array of { id, thumbnailDataUrl }
-    // photoScores: PhotoScore[]
 
     const imageContent: Anthropic.Messages.ContentBlockParam[] = [];
-    const photosToShow = availablePhotos.slice(0, 30); // limit for context
+    const photosToShow = availablePhotos.slice(0, 30);
 
     for (const photo of photosToShow) {
+      const score = (photoScores as PhotoScore[]).find((s: PhotoScore) => s.photoId === photo.id);
       imageContent.push({
         type: "image",
         source: {
@@ -24,46 +23,46 @@ export async function POST(req: NextRequest) {
       });
       imageContent.push({
         type: "text",
-        text: `[Photo ID: ${photo.id}] Score: ${(photoScores as PhotoScore[]).find((s: PhotoScore) => s.photoId === photo.id)?.score || "N/A"} - ${(photoScores as PhotoScore[]).find((s: PhotoScore) => s.photoId === photo.id)?.reason || ""} Tags: ${(photoScores as PhotoScore[]).find((s: PhotoScore) => s.photoId === photo.id)?.tags?.join(", ") || ""}`,
+        text: `[Photo ID: ${photo.id}] Score: ${score?.score || "N/A"} | ${score?.reason || ""} | Tags: ${score?.tags?.join(", ") || ""} | Content: ${(score as PhotoScore & { contentHash?: string })?.contentHash || ""}`,
       });
     }
 
     let prompt: string;
 
     if (generateInitial) {
-      prompt = `Create a beautiful photo book layout using these scored photos.
+      prompt = `Create a beautiful photo book layout from these curated photos.
 
-Context:
-- Occasion: ${interviewAnswers.occasion}
-- Mood: ${interviewAnswers.mood}
-- Must include: ${interviewAnswers.mustInclude}
-- Notes: ${interviewAnswers.additionalContext}
+CREATOR'S VISION (from interview):
+${interviewAnswers.summary}
 
-Select the best 15-25 photos (prioritize higher-scored ones) and arrange them into a compelling narrative.
+INSTRUCTIONS:
+Select 15-25 photos and arrange them into a compelling visual narrative. Use the scores and content descriptions to guide your choices.
 
-Return a JSON object with this structure:
+CRITICAL RULES:
+- NEVER use the same photo twice
+- NEVER use two photos that depict very similar scenes — each page should show a DIFFERENT moment
+- Prioritize higher-scored photos but ensure variety in scenes, people, and settings
+- Sequence the photos to tell a story — consider chronological flow or thematic grouping based on what the creator said they prefer
+- "cover": 1 photo — the single most impactful, iconic shot
+- "spread": 2 photos that complement each other (e.g. wide + close-up of same scene, or two related moments)
+- "single": 1 photo that deserves full attention
+- "closing": 1 photo — reflective, emotional ending
+- Aim for 8-14 pages, mixing spreads and singles for visual rhythm
+- Write captions that add emotional context or narrative — NOT descriptions of what's visible. Think: "The moment everything clicked" not "People sitting at a table smiling"
+
+Return a JSON object:
 {
   "title": "Book Title",
   "subtitle": "Optional subtitle",
   "aesthetic": "minimal",
   "pages": [
-    {"id": "page_1", "type": "cover", "photoIds": ["one_photo_id"], "caption": "Cover caption"},
-    {"id": "page_2", "type": "spread", "photoIds": ["id1", "id2"], "caption": "Optional caption"},
-    {"id": "page_3", "type": "single", "photoIds": ["one_photo_id"], "caption": "Optional caption"},
+    {"id": "page_1", "type": "cover", "photoIds": ["id"], "caption": "..."},
+    {"id": "page_2", "type": "spread", "photoIds": ["id1", "id2"], "caption": "..."},
+    {"id": "page_3", "type": "single", "photoIds": ["id"], "caption": "..."},
     ...
-    {"id": "page_N", "type": "closing", "photoIds": ["one_photo_id"], "caption": "Closing thought"}
+    {"id": "page_N", "type": "closing", "photoIds": ["id"], "caption": "..."}
   ]
 }
-
-Rules:
-- "cover" page: exactly 1 photo, should be the most impactful
-- "spread" pages: exactly 2 photos that pair well together
-- "single" pages: 1 photo that deserves focus
-- "closing" page: 1 photo, reflective/emotional ending
-- Mix spreads and singles for visual rhythm
-- Write warm, personal captions that enhance the story (not describe what's visible)
-- Use the available photo IDs ONLY
-- Aim for 8-14 pages total
 
 Return ONLY the JSON object.`;
     } else {
@@ -72,12 +71,16 @@ ${JSON.stringify(currentBook, null, 2)}
 
 The user wants to make this edit: "${instruction}"
 
-Modify the book accordingly. You can:
-- Swap photos (use available photo IDs from the images shown)
-- Reorder pages
-- Change captions
-- Add or remove pages
-- Change the title/subtitle
+CREATOR'S ORIGINAL VISION:
+${interviewAnswers.summary}
+
+Modify the book to fulfill the user's request. You can:
+- Swap photos (use available photo IDs from the images shown above)
+- Reorder, add, or remove pages
+- Rewrite captions
+- Change title/subtitle
+- NEVER use the same photo on multiple pages
+- When swapping, pick a photo that is VISUALLY DIFFERENT from what was there before
 
 Return the COMPLETE updated book as a JSON object with the same structure.
 Return ONLY the JSON object.`;

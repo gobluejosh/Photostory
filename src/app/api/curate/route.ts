@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       batches.push(thumbnails.slice(i, i + batchSize));
     }
 
-    let allScores: { photoId: string; score: number; reason: string; tags: string[] }[] = [];
+    let allScores: { photoId: string; score: number; reason: string; tags: string[]; contentHash: string }[] = [];
 
     for (const batch of batches) {
       const imageContent: Anthropic.Messages.ContentBlockParam[] = [];
@@ -37,28 +37,44 @@ export async function POST(req: NextRequest) {
 
       const prompt =
         pass === "first"
-          ? `You are curating photos for a photo book. Score each photo from 1-10 based on:
-- Technical quality (sharpness, exposure, composition)
-- Visual interest and emotional impact
-- Uniqueness (penalize near-duplicates - if you see very similar photos, only score the best one highly)
+          ? `You are curating ${thumbnails.length} photos for a photo book. Here is a batch of ${batch.length}.
 
-Context from the creator:
-- Occasion: ${interviewAnswers.occasion}
-- Desired mood: ${interviewAnswers.mood}
-- Must include: ${interviewAnswers.mustInclude}
-- Additional notes: ${interviewAnswers.additionalContext}
+CREATOR'S VISION (from interview):
+${interviewAnswers.summary}
 
-Return a JSON array with objects containing: photoId, score (1-10), reason (brief), tags (array of descriptive tags like "group", "landscape", "food", "portrait", "action", "detail").
-Return ONLY the JSON array, no other text.`
-          : `You are doing the final selection for a photo book. These are the shortlisted photos.
-Score each from 1-10, considering:
-- How well it fits the story: ${interviewAnswers.occasion}
-- Desired mood: ${interviewAnswers.mood}
-- Diversity of moments (we want variety - different scenes, people, activities)
-- Whether the person/thing mentioned here appears: ${interviewAnswers.mustInclude}
+Score each photo 1-10 based on:
+1. **Technical quality** (sharpness, exposure, composition, lighting) — blurry/dark/badly framed = low score
+2. **Emotional impact** — does this photo make you feel something? Candid moments > posed shots
+3. **Story relevance** — how well does it match what the creator described above?
+4. **Uniqueness** — describe what's in each photo with a short "contentHash" (e.g. "two_people_beach_sunset", "group_dinner_table_laughing"). This will be used to eliminate near-duplicates across batches.
 
-Return a JSON array with objects containing: photoId, score (1-10), reason (brief), tags (array).
-Return ONLY the JSON array, no other text.`;
+CRITICAL: If two photos in this batch show nearly the same scene/moment/pose, give the weaker one a score of 1-3. We want DIVERSITY of moments.
+
+Return a JSON array with objects:
+{"photoId": "...", "score": 1-10, "reason": "brief reason", "tags": ["portrait", "landscape", "group", "food", "detail", "action", "scenic", "candid"], "contentHash": "brief_scene_description"}
+
+Return ONLY the JSON array.`
+          : `You are doing the FINAL selection for a photo book. These ${batch.length} photos are the shortlist.
+
+CREATOR'S VISION:
+${interviewAnswers.summary}
+
+PREVIOUSLY SELECTED content hashes (from other batches — avoid selecting photos that duplicate these scenes):
+${allScores.filter(s => s.score >= 7).map(s => s.contentHash).join(", ") || "none yet"}
+
+Score each 1-10 with STRICT standards:
+1. **Story fit** — Does this advance the narrative the creator described?
+2. **Diversity** — We need variety: different scenes, people, settings, activities. If this photo covers a moment already well-represented, score it LOW (1-4).
+3. **People focus** — Based on the interview, weight people shots vs scenery appropriately
+4. **Technical excellence** — Only the sharpest, best-composed shots should score 8+
+5. **Emotional resonance** — Does this photo capture a genuine moment?
+
+DUPLICATE ELIMINATION: Check contentHash values. If a photo depicts a scene very similar to one already scoring 7+, give it a 1-3 regardless of quality.
+
+Return a JSON array:
+{"photoId": "...", "score": 1-10, "reason": "brief reason", "tags": [...], "contentHash": "brief_scene_description"}
+
+Return ONLY the JSON array.`;
 
       const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",

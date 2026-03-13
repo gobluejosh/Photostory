@@ -31,11 +31,14 @@ export interface PhotoBook {
   aesthetic: "minimal" | "editorial" | "warm";
 }
 
+export interface InterviewQA {
+  question: string;
+  answer: string;
+}
+
 export interface InterviewAnswers {
-  occasion: string;
-  mood: string;
-  mustInclude: string;
-  additionalContext: string;
+  qaPairs: InterviewQA[];
+  summary: string; // formatted for downstream prompts
 }
 
 export type AppStep = "upload" | "interview" | "curating" | "book" | "editing";
