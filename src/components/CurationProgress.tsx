@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 
+interface ScoreResult {
+  photoId: string;
+  score: number;
+  reason: string;
+  tags: string[];
+  contentHash: string;
+}
+
 export default function CurationProgress() {
   const { state, dispatch } = useApp();
   const [status, setStatus] = useState("Starting photo analysis...");
@@ -13,74 +21,112 @@ export default function CurationProgress() {
       if (!state.interviewAnswers) return;
 
       try {
-        // Pass 1: Score all photos with thumbnails
-        setStatus("Analyzing all photos...");
-        setProgress(10);
-
         const thumbnails = state.photos.map((p) => ({
           id: p.id,
           dataUrl: p.thumbnailDataUrl,
         }));
 
-        const res1 = await fetch("/api/curate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            thumbnails,
-            interviewAnswers: state.interviewAnswers,
-            pass: "first",
-          }),
-        });
+        // --- Pass 1: Score all photos in small client-side batches ---
+        setStatus("Analyzing your photos...");
+        setProgress(5);
 
-        const data1 = await res1.json();
-        if (!data1.scores) throw new Error("First pass failed");
+        const batchSize = 8; // small enough to complete within Vercel timeout
+        let allFirstPassScores: ScoreResult[] = [];
 
+        for (let i = 0; i < thumbnails.length; i += batchSize) {
+          const batch = thumbnails.slice(i, i + batchSize);
+          const batchNum = Math.floor(i / batchSize) + 1;
+          const totalBatches = Math.ceil(thumbnails.length / batchSize);
+
+          setStatus(`Analyzing photos (batch ${batchNum}/${totalBatches})...`);
+          setProgress(5 + Math.round((i / thumbnails.length) * 40));
+
+          const res = await fetch("/api/curate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              thumbnails: batch,
+              interviewAnswers: state.interviewAnswers,
+              pass: "first",
+            }),
+          });
+
+          const data = await res.json();
+          if (data.scores) {
+            allFirstPassScores = [...allFirstPassScores, ...data.scores];
+          }
+        }
+
+        if (allFirstPassScores.length === 0) {
+          throw new Error("No photos could be scored");
+        }
+
+        // --- Shortlist: keep top ~40 from first pass ---
         setProgress(50);
         setStatus("Narrowing down the best shots...");
 
-        // Keep top ~40 photos from first pass
-        const sortedScores = [...data1.scores].sort(
-          (a: { score: number }, b: { score: number }) => b.score - a.score
-        );
+        const sortedScores = [...allFirstPassScores].sort((a, b) => b.score - a.score);
         const shortlistIds = new Set(
-          sortedScores.slice(0, Math.min(40, sortedScores.length)).map((s: { photoId: string }) => s.photoId)
+          sortedScores.slice(0, Math.min(40, sortedScores.length)).map((s) => s.photoId)
         );
         const shortlistThumbnails = thumbnails.filter((t) => shortlistIds.has(t.id));
 
-        // Pass 2: Re-evaluate shortlist with story context
-        setStatus("Selecting final photos for your story...");
-        setProgress(70);
+        // --- Pass 2: Re-evaluate shortlist in batches with cross-batch dedup ---
+        let allSecondPassScores: ScoreResult[] = [];
 
-        const res2 = await fetch("/api/curate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            thumbnails: shortlistThumbnails,
-            interviewAnswers: state.interviewAnswers,
-            pass: "second",
-          }),
-        });
+        for (let i = 0; i < shortlistThumbnails.length; i += batchSize) {
+          const batch = shortlistThumbnails.slice(i, i + batchSize);
+          const batchNum = Math.floor(i / batchSize) + 1;
+          const totalBatches = Math.ceil(shortlistThumbnails.length / batchSize);
 
-        const data2 = await res2.json();
-        if (!data2.scores) throw new Error("Second pass failed");
+          setStatus(`Final selection (batch ${batchNum}/${totalBatches})...`);
+          setProgress(55 + Math.round((i / shortlistThumbnails.length) * 25));
 
-        dispatch({ type: "SET_PHOTO_SCORES", scores: data2.scores });
+          // Pass content hashes from previously scored batches for dedup
+          const previousContentHashes = allSecondPassScores
+            .filter((s) => s.score >= 7)
+            .map((s) => s.contentHash);
 
-        // Now generate the initial book layout
+          const res = await fetch("/api/curate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              thumbnails: batch,
+              interviewAnswers: state.interviewAnswers,
+              pass: "second",
+              previousContentHashes,
+            }),
+          });
+
+          const data = await res.json();
+          if (data.scores) {
+            allSecondPassScores = [...allSecondPassScores, ...data.scores];
+          }
+        }
+
+        if (allSecondPassScores.length === 0) {
+          throw new Error("Final selection failed");
+        }
+
+        dispatch({ type: "SET_PHOTO_SCORES", scores: allSecondPassScores });
+
+        // --- Generate the initial book layout ---
         setStatus("Designing your photo book...");
         setProgress(85);
 
-        const topPhotos = [...data2.scores]
-          .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
+        const topPhotos = [...allSecondPassScores]
+          .sort((a, b) => b.score - a.score)
           .slice(0, 30);
 
-        const availablePhotos = topPhotos.map((s: { photoId: string }) => {
-          const photo = state.photos.find((p) => p.id === s.photoId);
-          return {
-            id: s.photoId,
-            thumbnailDataUrl: photo?.thumbnailDataUrl || "",
-          };
-        }).filter((p: { thumbnailDataUrl: string }) => p.thumbnailDataUrl);
+        const availablePhotos = topPhotos
+          .map((s) => {
+            const photo = state.photos.find((p) => p.id === s.photoId);
+            return {
+              id: s.photoId,
+              thumbnailDataUrl: photo?.thumbnailDataUrl || "",
+            };
+          })
+          .filter((p) => p.thumbnailDataUrl);
 
         const res3 = await fetch("/api/edit-book", {
           method: "POST",
@@ -88,7 +134,7 @@ export default function CurationProgress() {
           body: JSON.stringify({
             generateInitial: true,
             availablePhotos,
-            photoScores: data2.scores,
+            photoScores: allSecondPassScores,
             interviewAnswers: state.interviewAnswers,
           }),
         });
@@ -105,7 +151,8 @@ export default function CurationProgress() {
         }, 800);
       } catch (error) {
         console.error("Curation error:", error);
-        setStatus("Something went wrong. Please try again.");
+        const message = error instanceof Error ? error.message : "Unknown error";
+        setStatus(`Something went wrong: ${message}`);
       }
     }
 
@@ -122,7 +169,6 @@ export default function CurationProgress() {
       </div>
       <p className="text-sm text-gray-500 animate-pulse">{status}</p>
 
-      {/* Show some photos being analyzed */}
       <div className="flex gap-1 mt-8 opacity-40">
         {state.photos.slice(0, 5).map((photo) => (
           <div key={photo.id} className="w-12 h-12 rounded overflow-hidden">
