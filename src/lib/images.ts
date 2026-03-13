@@ -72,35 +72,50 @@ async function uploadToBlob(photoId: string, file: File): Promise<string | null>
   }
 }
 
+// Yield to the browser so the UI stays responsive during heavy processing
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export async function processPhotos(files: File[]): Promise<Photo[]> {
   const photos: Photo[] = [];
 
   for (const file of files) {
     if (!file.type.startsWith("image/")) continue;
 
-    const id = generateId();
-    const fullDataUrl = await readFileAsDataUrl(file);
+    try {
+      const id = generateId();
+      const fullDataUrl = await readFileAsDataUrl(file);
 
-    // Create thumbnail for Claude (small, ~512px) — kept as base64 in memory
-    const thumbnail = await resizeImage(fullDataUrl, 512, 512);
+      await yieldToMain();
 
-    // Create display version and try uploading to Vercel Blob
-    const display = await resizeImage(fullDataUrl, 1600, 1600);
-    const displayFile = dataUrlToFile(display.dataUrl, file.name);
-    const blobUrl = await uploadToBlob(id, displayFile);
+      // Create thumbnail for Claude (small, ~512px) — kept as base64 in memory
+      const thumbnail = await resizeImage(fullDataUrl, 512, 512);
 
-    // Fall back to data URL if Blob upload isn't available
-    const fullUrl = blobUrl || display.dataUrl;
+      // Create display version and try uploading to Vercel Blob
+      const display = await resizeImage(fullDataUrl, 1600, 1600);
 
-    photos.push({
-      id,
-      file: null,
-      fileName: file.name,
-      thumbnailDataUrl: thumbnail.dataUrl,
-      fullUrl,
-      width: display.width,
-      height: display.height,
-    });
+      await yieldToMain();
+
+      const displayFile = dataUrlToFile(display.dataUrl, file.name);
+      const blobUrl = await uploadToBlob(id, displayFile);
+
+      // Fall back to data URL if Blob upload isn't available
+      const fullUrl = blobUrl || display.dataUrl;
+
+      photos.push({
+        id,
+        file: null,
+        fileName: file.name,
+        thumbnailDataUrl: thumbnail.dataUrl,
+        fullUrl,
+        width: display.width,
+        height: display.height,
+      });
+    } catch (err) {
+      console.error(`Failed to process ${file.name}:`, err);
+      // Skip this photo but continue with others
+    }
   }
 
   return photos;
