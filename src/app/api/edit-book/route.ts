@@ -63,10 +63,12 @@ DESIGN PRINCIPLES (Artifact Uprising style):
 2. PACING: Create visual rhythm — a full-bleed dramatic shot followed by a quiet single, then a lively grid. Like music, vary the energy.
 3. BREATHING ROOM: Include 1-2 text-pages as chapter breaks or emotional pauses.
 4. WHITESPACE: Many layouts have generous margins. This is intentional. The space makes the photos feel special.
-5. CAPTIONS: Write sparingly but beautifully. Not descriptions ("The beach at sunset") but feelings and context ("The golden hour we almost missed"). Some pages need no caption at all — set caption to null for those.
+5. CAPTIONS: LESS IS MORE. Most pages should have caption set to null. Only add a caption when it truly adds emotional context — never describe what's visible in the photo. When you do write one, keep it very short (under 10 words). The photos should speak for themselves.
 6. NARRATIVE ARC: Structure the book with a beginning (cover, establishing shots), middle (the heart of the story), and end (reflection, closing).
 7. SELECT 15-25 photos. Never use the same photo twice. Never use near-duplicate scenes.
 8. AIM FOR 10-16 pages total.
+9. PHOTO SIZE IS PARAMOUNT: This is a PHOTO book. Photos should be large and immersive. Favor layouts that showcase photos at their biggest: full-bleed, single, panoramic. Use grid and duo-stacked sparingly — tiny photos are hard to see and feel underwhelming. When you do use multi-photo layouts, make sure the photos are large enough to appreciate.
+10. Prefer "full-bleed" and "single" layouts over "grid" and "duo-stacked". Use at most 1 grid page and at most 1 duo-stacked page in the whole book.
 
 EXAMPLE SEQUENCE for rhythm:
 cover → single → spread → text-page → full-bleed → offset → grid → single → panoramic → duo-stacked → single → closing

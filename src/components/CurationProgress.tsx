@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useApp } from "@/lib/store";
 
 interface ScoreResult {
@@ -11,10 +11,42 @@ interface ScoreResult {
   contentHash: string;
 }
 
+const expertMessages = [
+  // Analysis phase
+  ["Studying composition and lighting in each photo...", "Evaluating color palette and tonal range...", "Assessing emotional impact of each shot...", "Checking for technical quality — sharpness, exposure, noise...", "Identifying recurring subjects and themes...", "Looking for the strongest storytelling moments...", "Comparing similar shots to find the best version..."],
+  // Shortlisting phase
+  ["Selecting the most compelling photos for your story...", "Balancing variety — people, places, details...", "Eliminating near-duplicates to keep it fresh...", "Considering the narrative flow between shots...", "Making sure key moments are represented...", "Weighing emotional resonance against technical quality..."],
+  // Book design phase
+  ["Choosing the perfect cover image...", "Designing the opening sequence...", "Pairing complementary photos for spreads...", "Creating visual rhythm — quiet moments, then dramatic ones...", "Writing captions that capture the feeling, not just the scene...", "Balancing whitespace and photography...", "Crafting the closing sequence for emotional resonance...", "Sequencing pages for narrative arc...", "Selecting layout types for maximum visual impact..."],
+];
+
 export default function CurationProgress() {
   const { state, dispatch } = useApp();
   const [status, setStatus] = useState("Starting photo analysis...");
+  const [expertMsg, setExpertMsg] = useState("");
   const [progress, setProgress] = useState(0);
+  const phaseRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Rotate through expert messages for the current phase
+  const startMessageRotation = useCallback((phase: number) => {
+    phaseRef.current = phase;
+    const messages = expertMessages[phase] || expertMessages[0];
+    let idx = 0;
+    setExpertMsg(messages[0]);
+
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      idx = (idx + 1) % messages.length;
+      setExpertMsg(messages[idx]);
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     async function curate() {
@@ -29,6 +61,7 @@ export default function CurationProgress() {
         // --- Pass 1: Score all photos in small client-side batches ---
         setStatus("Analyzing your photos...");
         setProgress(5);
+        startMessageRotation(0);
 
         const batchSize = 8; // small enough to complete within Vercel timeout
         let allFirstPassScores: ScoreResult[] = [];
@@ -64,6 +97,7 @@ export default function CurationProgress() {
         // --- Shortlist: keep top ~40 from first pass ---
         setProgress(50);
         setStatus("Narrowing down the best shots...");
+        startMessageRotation(1);
 
         const sortedScores = [...allFirstPassScores].sort((a, b) => b.score - a.score);
         const shortlistIds = new Set(
@@ -113,6 +147,7 @@ export default function CurationProgress() {
         // --- Generate the initial book layout ---
         setStatus("Designing your photo book...");
         setProgress(85);
+        startMessageRotation(2);
 
         const topPhotos = [...allSecondPassScores]
           .sort((a, b) => b.score - a.score)
@@ -146,6 +181,9 @@ export default function CurationProgress() {
         setProgress(100);
         setStatus("Your photo book is ready!");
 
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setExpertMsg("");
+
         setTimeout(() => {
           dispatch({ type: "SET_STEP", step: "book" });
         }, 800);
@@ -157,7 +195,7 @@ export default function CurationProgress() {
     }
 
     curate();
-  }, [state.interviewAnswers, state.photos, dispatch]);
+  }, [state.interviewAnswers, state.photos, dispatch, startMessageRotation]);
 
   return (
     <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto px-4 py-20">
@@ -167,7 +205,12 @@ export default function CurationProgress() {
           style={{ width: `${progress}%` }}
         />
       </div>
-      <p className="text-sm text-gray-500 animate-pulse">{status}</p>
+      <p className="text-sm text-gray-500 font-medium">{status}</p>
+      {expertMsg && (
+        <p key={expertMsg} className="text-xs text-gray-400 mt-2 animate-pulse transition-opacity duration-500">
+          {expertMsg}
+        </p>
+      )}
 
       <div className="flex gap-1 mt-8 opacity-40">
         {state.photos.slice(0, 5).map((photo) => (

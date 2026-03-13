@@ -12,6 +12,7 @@ export default function BookViewer() {
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showRejected, setShowRejected] = useState(false);
+  const [shareLabel, setShareLabel] = useState("Share link");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const bookRef = useRef<HTMLDivElement>(null);
   const hasSavedRef = useRef(false);
@@ -603,7 +604,8 @@ export default function BookViewer() {
           onKeyDown={(e) => e.key === "Enter" && handleEdit()}
           placeholder={isEditing ? "Updating your book..." : 'Edit with natural language... e.g. "swap page 3 photo"'}
           disabled={isEditing}
-          className="flex-1 border border-stone-200 rounded-full px-4 py-2.5 text-sm book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white"
+          className="flex-1 border border-stone-200 rounded-full px-4 py-2.5 text-base book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white"
+          style={{ fontSize: "16px" }}
         />
         <button
           onClick={handleEdit}
@@ -624,16 +626,29 @@ export default function BookViewer() {
           {isExporting ? "Generating PDF..." : "Download PDF"}
         </button>
         <button
-          onClick={() => {
-            if (state.bookId) {
-              const url = `${window.location.origin}/book/${state.bookId}`;
-              navigator.clipboard?.writeText(url);
+          onClick={async () => {
+            if (!state.bookId) return;
+            const url = `${window.location.origin}/book/${state.bookId}`;
+            try {
+              await navigator.clipboard.writeText(url);
+              setShareLabel("Copied!");
+              setTimeout(() => setShareLabel("Share link"), 2000);
+            } catch {
+              // Fallback for mobile / insecure contexts
+              const input = document.createElement("input");
+              input.value = url;
+              document.body.appendChild(input);
+              input.select();
+              document.execCommand("copy");
+              document.body.removeChild(input);
+              setShareLabel("Copied!");
+              setTimeout(() => setShareLabel("Share link"), 2000);
             }
           }}
           disabled={!state.bookId}
           className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors disabled:opacity-50"
         >
-          Share link
+          {shareLabel}
         </button>
         <button
           onClick={() => dispatch({ type: "SET_STEP", step: "upload" })}
@@ -666,7 +681,7 @@ export default function BookViewer() {
 
           {showRejected && (
             <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-              {rejectedPhotos.map(({ photo, score }) => (
+              {rejectedPhotos.map(({ photo, score }, index) => (
                 <div key={photo.id} className="group">
                   <div className="aspect-square rounded overflow-hidden bg-stone-100 relative">
                     <img
@@ -674,6 +689,9 @@ export default function BookViewer() {
                       alt=""
                       className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                     />
+                    <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
+                      {index + 1}
+                    </div>
                     {score && (
                       <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full book-sans">
                         {score.score}/10

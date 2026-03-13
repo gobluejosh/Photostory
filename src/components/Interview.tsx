@@ -9,11 +9,9 @@ interface Question {
 }
 
 const fallbackQuestions: Question[] = [
-  { id: "story", question: "What's the story behind these photos? What was the occasion?" },
-  { id: "people", question: "Who are the key people in these photos, and who should be featured most prominently?" },
-  { id: "preferences", question: "Do you prefer more people-focused shots or scenery/atmosphere? And should the book flow chronologically or by theme?" },
-  { id: "mood", question: "What mood or feeling should the book evoke — playful, nostalgic, elegant, adventurous?" },
-  { id: "must_haves", question: "Are there any specific moments or people that absolutely must be included, or anything you'd like left out?" },
+  { id: "story", question: "What's the story behind these photos — what was the occasion or trip?" },
+  { id: "mood", question: "What feeling should the book evoke — playful, nostalgic, elegant, or adventurous?" },
+  { id: "must_haves", question: "Any specific moments or people that must be included, or anything to leave out?" },
 ];
 
 export default function Interview() {
@@ -127,7 +125,8 @@ export default function Interview() {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmitAnswer()}
           placeholder="Type your answer..."
-          className="flex-1 border border-gray-200 rounded-full px-4 py-3 text-sm focus:outline-none focus:border-gray-400"
+          className="flex-1 border border-gray-200 rounded-full px-4 py-3 text-base focus:outline-none focus:border-gray-400"
+          style={{ fontSize: "16px" }}
           autoFocus
         />
         <button

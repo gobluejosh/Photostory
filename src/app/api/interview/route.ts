@@ -40,28 +40,26 @@ export async function POST(req: NextRequest) {
               type: "text",
               text: `I have ${photoCount} photos I want to turn into a beautiful photo book. Above is a representative sample from the collection.
 
-Your job: study these photos carefully and generate 4-5 thoughtful, specific interview questions that will help you curate and sequence the best photos into a compelling book.
+Your job: study these photos carefully and generate exactly 3 short, focused interview questions that will help you curate and sequence the best photos into a compelling book.
 
-IMPORTANT GUIDELINES FOR YOUR QUESTIONS:
-- First, internally note what you observe: Who are the people? What's the setting/event? What activities? What's the vibe? Are there recurring subjects?
-- Then ask questions that FILL IN what you can't determine from the photos alone.
-- Every question must be DIFFERENT in what it's trying to learn. No redundancy.
+CRITICAL RULES:
+- Exactly 3 questions. No more, no less.
+- Each question must be a SINGLE, simple question. NO multi-part questions. NO "and also" or "Do you X? And what about Y?" — one thing per question.
+- Keep questions SHORT — 1-2 sentences max.
+- Be warm and conversational.
 
-YOUR QUESTIONS SHOULD COVER THESE AREAS (one question per area):
-1. **The story**: What is this collection about? Reference specific things you see to show you've looked at the photos. (e.g. "I can see a group at what looks like a lakehouse — what was the occasion?")
-2. **The people**: If you see people, ask who they are and who should be featured most prominently. Name specific observations. (e.g. "I notice a couple that appears in several shots — who are they and are they the focus?")
-3. **Preferences**: Ask about their preference between people-focused shots vs. scenery/details/atmosphere shots, and whether they want the story told chronologically or thematically.
-4. **Mood & tone**: What feeling should the book evoke? Playful? Nostalgic? Elegant? Adventurous?
-5. **Must-haves & exclusions**: Any specific moments, people, or things that absolutely must (or must not) be included?
+BEFORE WRITING QUESTIONS, analyze the photos internally:
+- Note who appears most frequently — this is likely the most important person/people. Make your best guess about relationships (couple, family, friends, parent+child, etc.)
+- Note the setting, event type, activities, and vibe.
+- Note recurring themes or subjects.
 
-RULES:
-- Be warm and conversational
-- Reference SPECIFIC things you actually see in the sample photos — prove you looked at them
-- Do NOT ask generic/vague questions like "tell me about these photos" or "what's the story"
-- Each question must target a DISTINCT piece of information
-- Return ONLY a JSON array, no other text
+YOUR 3 QUESTIONS SHOULD COVER:
+1. **Confirm your read + the story**: State what you think this collection is about and who the key people are based on what you see. Reference specific photos by sample number (e.g. "In samples 3 and 7, I see what looks like a couple by the lake"). Ask them to confirm and correct your interpretation. This proves you looked carefully and gets the essential context.
+2. **Mood & style**: What feeling should the book evoke? Offer 3-4 concrete options based on what you see in the photos (e.g. "These feel warm and candid — should the book lean playful, nostalgic, or more polished/elegant?")
+3. **Must-haves or exclusions**: Any specific moments or people that must be included, or anything to leave out?
 
-Format: [{"id": "story", "question": "..."}, {"id": "people", "question": "..."}, {"id": "preferences", "question": "..."}, {"id": "mood", "question": "..."}, {"id": "must_haves", "question": "..."}]`,
+Return ONLY a JSON array, no other text.
+Format: [{"id": "story", "question": "..."}, {"id": "mood", "question": "..."}, {"id": "must_haves", "question": "..."}]`,
             },
           ],
         },

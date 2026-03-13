@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { SavedBook, BookPage, PhotoBook } from "@/lib/types";
+import { SavedBook, BookPage } from "@/lib/types";
 
 export default function SavedBookPage() {
   const params = useParams();
@@ -14,6 +14,10 @@ export default function SavedBookPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [showRejected, setShowRejected] = useState(false);
+  const [editInput, setEditInput] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [shareLabel, setShareLabel] = useState("Share link");
 
   useEffect(() => {
     async function load() {
@@ -40,6 +44,64 @@ export default function SavedBookPage() {
     },
     [currentPage, savedBook]
   );
+
+  const saveBook = useCallback(async (updated: SavedBook) => {
+    setIsSaving(true);
+    try {
+      await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...updated, updatedAt: new Date().toISOString() }),
+      });
+    } catch (e) {
+      console.error("Save error:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
+  const handleEdit = async () => {
+    if (!editInput.trim() || !savedBook) return;
+    setIsEditing(true);
+
+    try {
+      // Build available photos from the saved book's photoUrls
+      const availablePhotos = Object.entries(savedBook.photoUrls).map(([id, url]) => ({
+        id,
+        thumbnailDataUrl: url, // Use the full URL as thumbnail for the API
+      }));
+
+      const res = await fetch("/api/edit-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instruction: editInput,
+          currentBook: savedBook.book,
+          availablePhotos,
+          photoScores: savedBook.photoScores,
+          interviewAnswers: { summary: savedBook.interviewSummary },
+        }),
+      });
+
+      const data = await res.json();
+      if (data.book) {
+        const usedPhotoIds = [...new Set(data.book.pages.flatMap((p: BookPage) => p.photoIds))];
+        const updated: SavedBook = {
+          ...savedBook,
+          book: data.book,
+          usedPhotoIds: usedPhotoIds as string[],
+          updatedAt: new Date().toISOString(),
+        };
+        setSavedBook(updated);
+        setEditInput("");
+        saveBook(updated);
+      }
+    } catch (error) {
+      console.error("Edit error:", error);
+    } finally {
+      setIsEditing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -77,7 +139,7 @@ export default function SavedBookPage() {
     .filter((p) => p.url)
     .sort((a, b) => (b.score?.score || 0) - (a.score?.score || 0));
 
-  // ─── Renderers (same as BookViewer but using photoUrls) ────────
+  // ─── Renderers ─────────────────────────────────────────────────
 
   const Caption = ({ text, className = "" }: { text?: string; className?: string }) =>
     text ? <p className={`book-caption text-xs sm:text-sm leading-relaxed ${className}`}>{text}</p> : null;
@@ -292,9 +354,12 @@ export default function SavedBookPage() {
           <a href="/books" className="text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors">
             &larr; My Books
           </a>
-          <a href="/" className="text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors">
-            Create new book
-          </a>
+          <div className="flex items-center gap-3">
+            {isSaving && <span className="text-xs text-stone-400 book-sans animate-pulse">Saving...</span>}
+            <a href="/" className="text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors">
+              Create new book
+            </a>
+          </div>
         </div>
 
         {/* Book display */}
@@ -331,6 +396,53 @@ export default function SavedBookPage() {
           </button>
         </div>
 
+        {/* Edit bar */}
+        <div className="flex gap-2 mt-5">
+          <input
+            type="text"
+            value={editInput}
+            onChange={(e) => setEditInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+            placeholder={isEditing ? "Updating your book..." : 'Edit with natural language... e.g. "swap page 3 photo"'}
+            disabled={isEditing}
+            className="flex-1 border border-stone-200 rounded-full px-4 py-2.5 text-base book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white"
+            style={{ fontSize: "16px" }}
+          />
+          <button
+            onClick={handleEdit}
+            disabled={isEditing || !editInput.trim()}
+            className="bg-stone-800 text-white rounded-full px-5 py-2.5 text-sm book-sans font-medium disabled:opacity-30 hover:bg-stone-900 transition-colors"
+          >
+            {isEditing ? "..." : "Edit"}
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-4 justify-center">
+          <button
+            onClick={async () => {
+              const url = `${window.location.origin}/book/${bookId}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                setShareLabel("Copied!");
+                setTimeout(() => setShareLabel("Share link"), 2000);
+              } catch {
+                const input = document.createElement("input");
+                input.value = url;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand("copy");
+                document.body.removeChild(input);
+                setShareLabel("Copied!");
+                setTimeout(() => setShareLabel("Share link"), 2000);
+              }
+            }}
+            className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors"
+          >
+            {shareLabel}
+          </button>
+        </div>
+
         {/* Rejected photos panel */}
         {rejectedPhotos.length > 0 && (
           <div className="mt-8 mb-8">
@@ -354,7 +466,7 @@ export default function SavedBookPage() {
 
             {showRejected && (
               <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {rejectedPhotos.map(({ id, url, score }) => (
+                {rejectedPhotos.map(({ id, url, score }, index) => (
                   <div key={id} className="group">
                     <div className="aspect-square rounded overflow-hidden bg-stone-100 relative">
                       <img
@@ -362,6 +474,9 @@ export default function SavedBookPage() {
                         alt=""
                         className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                       />
+                      <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
+                        {index + 1}
+                      </div>
                       {score && (
                         <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full book-sans">
                           {score.score}/10
