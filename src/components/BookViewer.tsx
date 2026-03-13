@@ -596,21 +596,30 @@ export default function BookViewer() {
       </div>
 
       {/* Edit bar */}
-      <div className="flex gap-2 mt-5">
-        <input
-          type="text"
+      <div className="flex gap-2 mt-5 items-end">
+        <textarea
           value={editInput}
-          onChange={(e) => setEditInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+          onChange={(e) => {
+            setEditInput(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = e.target.scrollHeight + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleEdit();
+            }
+          }}
           placeholder={isEditing ? "Updating your book..." : 'Edit with natural language... e.g. "swap page 3 photo"'}
           disabled={isEditing}
-          className="flex-1 border border-stone-200 rounded-full px-4 py-2.5 text-base book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white"
+          rows={1}
+          className="flex-1 border border-stone-200 rounded-2xl px-4 py-2.5 text-base book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white resize-none overflow-hidden"
           style={{ fontSize: "16px" }}
         />
         <button
           onClick={handleEdit}
           disabled={isEditing || !editInput.trim()}
-          className="bg-stone-800 text-white rounded-full px-5 py-2.5 text-sm book-sans font-medium disabled:opacity-30 hover:bg-stone-900 transition-colors"
+          className="bg-stone-800 text-white rounded-full px-5 py-2.5 text-sm book-sans font-medium disabled:opacity-30 hover:bg-stone-900 transition-colors shrink-0"
         >
           {isEditing ? "..." : "Edit"}
         </button>

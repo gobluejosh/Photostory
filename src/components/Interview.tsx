@@ -118,21 +118,30 @@ export default function Interview() {
       </div>
 
       {/* Input */}
-      <div className="flex gap-2 mt-auto">
-        <input
-          type="text"
+      <div className="flex gap-2 mt-auto items-end">
+        <textarea
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmitAnswer()}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = e.target.scrollHeight + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmitAnswer();
+            }
+          }}
           placeholder="Type your answer..."
-          className="flex-1 border border-gray-200 rounded-full px-4 py-3 text-base focus:outline-none focus:border-gray-400"
+          rows={1}
+          className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-gray-400 resize-none overflow-hidden"
           style={{ fontSize: "16px" }}
           autoFocus
         />
         <button
           onClick={handleSubmitAnswer}
           disabled={!inputValue.trim()}
-          className="bg-black text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-30 hover:bg-gray-800 transition-colors"
+          className="bg-black text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-30 hover:bg-gray-800 transition-colors shrink-0"
         >
           Send
         </button>
