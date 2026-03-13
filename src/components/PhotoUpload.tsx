@@ -1,23 +1,25 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import { processPhotos } from "@/lib/images";
 
 export default function PhotoUpload() {
   const { state, dispatch } = useApp();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
       const fileArray = Array.from(files);
       if (fileArray.length === 0) return;
 
+      setError(null);
       dispatch({ type: "SET_LOADING", isLoading: true, message: `Processing ${fileArray.length} photos...` });
 
       try {
-        // Process in batches of 10 to avoid blocking
-        const batchSize = 10;
+        // Process in batches of 5 to avoid blocking
+        const batchSize = 5;
         for (let i = 0; i < fileArray.length; i += batchSize) {
           const batch = fileArray.slice(i, i + batchSize);
           const photos = await processPhotos(batch);
@@ -28,6 +30,9 @@ export default function PhotoUpload() {
             message: `Processed ${Math.min(i + batchSize, fileArray.length)} of ${fileArray.length} photos...`,
           });
         }
+      } catch (err) {
+        console.error("Photo processing error:", err);
+        setError("Something went wrong processing your photos. Please try again.");
       } finally {
         dispatch({ type: "SET_LOADING", isLoading: false });
       }
@@ -117,6 +122,10 @@ export default function PhotoUpload() {
 
       {state.isLoading && (
         <div className="mt-6 text-sm text-gray-500 animate-pulse">{state.loadingMessage}</div>
+      )}
+
+      {error && (
+        <div className="mt-4 text-sm text-red-500">{error}</div>
       )}
     </div>
   );

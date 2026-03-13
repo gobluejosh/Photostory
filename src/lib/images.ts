@@ -57,15 +57,19 @@ function dataUrlToFile(dataUrl: string, fileName: string): File {
   return new File([array], fileName, { type: mime });
 }
 
-async function uploadToBlob(photoId: string, file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("photoId", photoId);
+async function uploadToBlob(photoId: string, file: File): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("photoId", photoId);
 
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
-  const data = await res.json();
-  if (!data.url) throw new Error("Upload failed");
-  return data.url;
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.url || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function processPhotos(files: File[]): Promise<Photo[]> {
@@ -80,14 +84,17 @@ export async function processPhotos(files: File[]): Promise<Photo[]> {
     // Create thumbnail for Claude (small, ~512px) — kept as base64 in memory
     const thumbnail = await resizeImage(fullDataUrl, 512, 512);
 
-    // Create display version and upload to Vercel Blob
+    // Create display version and try uploading to Vercel Blob
     const display = await resizeImage(fullDataUrl, 1600, 1600);
     const displayFile = dataUrlToFile(display.dataUrl, file.name);
-    const fullUrl = await uploadToBlob(id, displayFile);
+    const blobUrl = await uploadToBlob(id, displayFile);
+
+    // Fall back to data URL if Blob upload isn't available
+    const fullUrl = blobUrl || display.dataUrl;
 
     photos.push({
       id,
-      file: null, // don't hold the original file in memory
+      file: null,
       fileName: file.name,
       thumbnailDataUrl: thumbnail.dataUrl,
       fullUrl,
