@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/lib/store";
 
 interface Question {
@@ -22,15 +22,19 @@ export default function Interview() {
   const [loading, setLoading] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
+  // Build the sample photos array (same logic used to send to the API)
+  const samplePhotos = useMemo(() => {
+    const step = Math.max(1, Math.floor(state.photos.length / 12));
+    return Array.from(
+      { length: Math.min(12, state.photos.length) },
+      (_, i) => state.photos[Math.min(i * step, state.photos.length - 1)]
+    );
+  }, [state.photos]);
+
   useEffect(() => {
     async function fetchQuestions() {
       try {
-        // Send a diverse sample: pick evenly spaced photos across the collection
-        const step = Math.max(1, Math.floor(state.photos.length / 12));
-        const sampleThumbnails = Array.from(
-          { length: Math.min(12, state.photos.length) },
-          (_, i) => state.photos[Math.min(i * step, state.photos.length - 1)].thumbnailDataUrl
-        );
+        const sampleThumbnails = samplePhotos.map((p) => p.thumbnailDataUrl);
 
         const res = await fetch("/api/interview", {
           method: "POST",
@@ -94,11 +98,27 @@ export default function Interview() {
 
   return (
     <div className="flex flex-col w-full max-w-lg mx-auto px-4">
-      <div className="text-center mb-8">
+      <div className="text-center mb-4">
         <h2 className="text-2xl font-light mb-1">Tell me about these photos</h2>
         <p className="text-gray-400 text-xs">
           {currentQ + 1} of {questions.length}
         </p>
+      </div>
+
+      {/* Numbered thumbnail strip so user can see which photos the AI references */}
+      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-6 -mx-1 px-1 scrollbar-thin">
+        {samplePhotos.map((photo, i) => (
+          <div key={photo.id} className="relative shrink-0">
+            <img
+              src={photo.thumbnailDataUrl}
+              alt={`Sample ${i + 1}`}
+              className="w-14 h-14 object-cover rounded-lg"
+            />
+            <span className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[9px] leading-none px-1 py-0.5 rounded">
+              {i + 1}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Chat-like display of previous answers */}
