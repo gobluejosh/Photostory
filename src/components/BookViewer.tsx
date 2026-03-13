@@ -61,10 +61,32 @@ export default function BookViewer() {
     }
   };
 
+  const fetchAsDataUrl = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
       const { default: jsPDF } = await import("jspdf");
+
+      // Pre-fetch all images used in the book as base64
+      const usedPhotoIds = new Set(pages.flatMap((p) => p.photoIds));
+      const imageCache: Record<string, string> = {};
+      for (const id of usedPhotoIds) {
+        const photo = getPhoto(id);
+        if (photo) {
+          try {
+            imageCache[id] = await fetchAsDataUrl(photo.fullUrl);
+          } catch { /* skip */ }
+        }
+      }
 
       const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [800, 600] });
       let firstPage = true;
@@ -73,16 +95,13 @@ export default function BookViewer() {
         if (!firstPage) pdf.addPage([800, 600], "landscape");
         firstPage = false;
 
-        // White background
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, 800, 600, "F");
 
         if (page.type === "cover") {
-          const photo = getPhoto(page.photoIds[0]);
-          if (photo) {
-            try {
-              pdf.addImage(photo.fullDataUrl, "JPEG", 100, 40, 600, 400);
-            } catch { /* skip if image fails */ }
+          const imgData = imageCache[page.photoIds[0]];
+          if (imgData) {
+            try { pdf.addImage(imgData, "JPEG", 100, 40, 600, 400); } catch {}
           }
           pdf.setFontSize(28);
           pdf.setFont("helvetica", "bold");
@@ -93,13 +112,13 @@ export default function BookViewer() {
             pdf.text(book.subtitle, 400, 520, { align: "center" });
           }
         } else if (page.type === "spread") {
-          const photo1 = getPhoto(page.photoIds[0]);
-          const photo2 = getPhoto(page.photoIds[1]);
-          if (photo1) {
-            try { pdf.addImage(photo1.fullDataUrl, "JPEG", 20, 40, 370, 440); } catch {}
+          const img1 = imageCache[page.photoIds[0]];
+          const img2 = imageCache[page.photoIds[1]];
+          if (img1) {
+            try { pdf.addImage(img1, "JPEG", 20, 40, 370, 440); } catch {}
           }
-          if (photo2) {
-            try { pdf.addImage(photo2.fullDataUrl, "JPEG", 410, 40, 370, 440); } catch {}
+          if (img2) {
+            try { pdf.addImage(img2, "JPEG", 410, 40, 370, 440); } catch {}
           }
           if (page.caption) {
             pdf.setFontSize(11);
@@ -107,9 +126,9 @@ export default function BookViewer() {
             pdf.text(page.caption, 400, 510, { align: "center", maxWidth: 600 });
           }
         } else {
-          const photo = getPhoto(page.photoIds[0]);
-          if (photo) {
-            try { pdf.addImage(photo.fullDataUrl, "JPEG", 150, 30, 500, 420); } catch {}
+          const imgData = imageCache[page.photoIds[0]];
+          if (imgData) {
+            try { pdf.addImage(imgData, "JPEG", 150, 30, 500, 420); } catch {}
           }
           if (page.caption) {
             pdf.setFontSize(11);
@@ -135,7 +154,7 @@ export default function BookViewer() {
           {photo && (
             <div className="w-full max-h-[60%] flex items-center justify-center mb-6">
               <img
-                src={photo.fullDataUrl}
+                src={photo.fullUrl}
                 alt=""
                 className="max-w-full max-h-full object-contain rounded-sm shadow-lg"
               />
@@ -160,7 +179,7 @@ export default function BookViewer() {
             {photo1 && (
               <div className="flex-1 flex items-center justify-center">
                 <img
-                  src={photo1.fullDataUrl}
+                  src={photo1.fullUrl}
                   alt=""
                   className="max-w-full max-h-full object-contain rounded-sm"
                 />
@@ -169,7 +188,7 @@ export default function BookViewer() {
             {photo2 && (
               <div className="flex-1 flex items-center justify-center">
                 <img
-                  src={photo2.fullDataUrl}
+                  src={photo2.fullUrl}
                   alt=""
                   className="max-w-full max-h-full object-contain rounded-sm"
                 />
@@ -192,7 +211,7 @@ export default function BookViewer() {
         {photo && (
           <div className="flex-1 flex items-center justify-center w-full min-h-0">
             <img
-              src={photo.fullDataUrl}
+              src={photo.fullUrl}
               alt=""
               className="max-w-full max-h-full object-contain rounded-sm shadow-sm"
             />

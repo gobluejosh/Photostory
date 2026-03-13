@@ -46,26 +46,51 @@ function resizeImage(
   });
 }
 
+function dataUrlToFile(dataUrl: string, fileName: string): File {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+  const binary = atob(base64);
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    array[i] = binary.charCodeAt(i);
+  }
+  return new File([array], fileName, { type: mime });
+}
+
+async function uploadToBlob(photoId: string, file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("photoId", photoId);
+
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  const data = await res.json();
+  if (!data.url) throw new Error("Upload failed");
+  return data.url;
+}
+
 export async function processPhotos(files: File[]): Promise<Photo[]> {
   const photos: Photo[] = [];
 
   for (const file of files) {
     if (!file.type.startsWith("image/")) continue;
 
+    const id = generateId();
     const fullDataUrl = await readFileAsDataUrl(file);
 
-    // Create thumbnail for Claude (small, ~512px)
+    // Create thumbnail for Claude (small, ~512px) — kept as base64 in memory
     const thumbnail = await resizeImage(fullDataUrl, 512, 512);
 
-    // Create display version (reasonable size)
-    const display = await resizeImage(fullDataUrl, 1200, 1200);
+    // Create display version and upload to Vercel Blob
+    const display = await resizeImage(fullDataUrl, 1600, 1600);
+    const displayFile = dataUrlToFile(display.dataUrl, file.name);
+    const fullUrl = await uploadToBlob(id, displayFile);
 
     photos.push({
-      id: generateId(),
-      file,
+      id,
+      file: null, // don't hold the original file in memory
       fileName: file.name,
       thumbnailDataUrl: thumbnail.dataUrl,
-      fullDataUrl: display.dataUrl,
+      fullUrl,
       width: display.width,
       height: display.height,
     });

@@ -3,7 +3,7 @@ export interface Photo {
   file: File | null; // null after serialization
   fileName: string;
   thumbnailDataUrl: string; // base64 small thumbnail for Claude
-  fullDataUrl: string; // base64 full-res for display
+  fullUrl: string; // Vercel Blob URL for full-res display
   dateTaken?: string;
   width: number;
   height: number;
