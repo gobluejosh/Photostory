@@ -22,7 +22,7 @@ export default function Interview() {
   const [loading, setLoading] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
-  // Build the sample photos array (same logic used to send to the API)
+  // Sample photos sent to the API (up to 12 evenly spaced)
   const samplePhotos = useMemo(() => {
     const step = Math.max(1, Math.floor(state.photos.length / 12));
     return Array.from(
@@ -75,8 +75,24 @@ export default function Interview() {
         question: q.question,
         answer: newAnswers[q.id] || "",
       }));
+
+      // Resolve photo number references (e.g. "#5", "photo 5") to photo IDs
+      // so the curation step can match them to specific photos
+      const resolvePhotoRefs = (text: string): string => {
+        return text.replace(
+          /(?:#|photo\s*)(\d+)/gi,
+          (match, numStr) => {
+            const idx = parseInt(numStr, 10) - 1;
+            if (idx >= 0 && idx < state.photos.length) {
+              return `${match} [id:${state.photos[idx].id}]`;
+            }
+            return match;
+          }
+        );
+      };
+
       const summary = qaPairs
-        .map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`)
+        .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
         .join("\n\n");
       dispatch({
         type: "SET_INTERVIEW_ANSWERS",
@@ -105,13 +121,13 @@ export default function Interview() {
         </p>
       </div>
 
-      {/* Numbered thumbnail strip so user can see which photos the AI references */}
+      {/* Numbered thumbnail strip — shows ALL photos so user can reference any by # */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 mb-6 -mx-1 px-1 scrollbar-thin">
-        {samplePhotos.map((photo, i) => (
+        {state.photos.map((photo, i) => (
           <div key={photo.id} className="relative shrink-0">
             <img
               src={photo.thumbnailDataUrl}
-              alt={`Sample ${i + 1}`}
+              alt={`Photo ${i + 1}`}
               className="w-14 h-14 object-cover rounded-lg"
             />
             <span className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[9px] leading-none px-1 py-0.5 rounded">
@@ -120,6 +136,9 @@ export default function Interview() {
           </div>
         ))}
       </div>
+      <p className="text-gray-400 text-[10px] text-center -mt-4 mb-4">
+        Scroll to see all {state.photos.length} photos — reference any by #
+      </p>
 
       {/* Chat-like display of previous answers */}
       <div className="flex flex-col gap-4 mb-8">
