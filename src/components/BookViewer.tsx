@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useApp } from "@/lib/store";
 import { BookPage, PhotoScore, SavedBook } from "@/lib/types";
+import { processPhotos } from "@/lib/images";
 
 export default function BookViewer() {
   const { state, dispatch } = useApp();
@@ -11,11 +12,13 @@ export default function BookViewer() {
   const [isEditing, setIsEditing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [showRejected, setShowRejected] = useState(false);
   const [shareLabel, setShareLabel] = useState("Share link");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const bookRef = useRef<HTMLDivElement>(null);
   const hasSavedRef = useRef(false);
+  const addPhotosRef = useRef<HTMLInputElement>(null);
 
   const goTo = useCallback(
     (page: number) => {
@@ -74,6 +77,59 @@ export default function BookViewer() {
       saveBook();
     }
   }, [state.book, saveBook]);
+
+  // --- Add photos handler ---
+  const handleAddPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    try {
+      const newPhotos = await processPhotos(Array.from(files));
+      if (newPhotos.length > 0) {
+        dispatch({ type: "ADD_PHOTOS", photos: newPhotos });
+
+        // Score the new photos via the curate API
+        const thumbnails = newPhotos.map((p) => ({
+          id: p.id,
+          dataUrl: p.thumbnailDataUrl,
+        }));
+        let newScores: PhotoScore[] = [];
+        try {
+          const res = await fetch("/api/curate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              thumbnails,
+              interviewAnswers: state.interviewAnswers,
+              pass: "first",
+            }),
+          });
+          const data = await res.json();
+          if (data.scores) {
+            newScores = data.scores;
+          }
+        } catch {
+          // Fallback: assign default scores if scoring fails
+          newScores = newPhotos.map((p) => ({
+            photoId: p.id,
+            score: 7,
+            reason: "Newly added photo (not scored)",
+            tags: ["added"],
+            contentHash: `new_${p.id}`,
+          }));
+        }
+
+        dispatch({
+          type: "SET_PHOTO_SCORES",
+          scores: [...state.photoScores, ...newScores],
+        });
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      setIsUploading(false);
+      if (addPhotosRef.current) addPhotosRef.current.value = "";
+    }
+  };
 
   // --- Rejected photos logic ---
   const { rejectedPhotos, usedPhotoIds } = useMemo(() => {
@@ -625,8 +681,25 @@ export default function BookViewer() {
         </button>
       </div>
 
+      {/* Add photos */}
+      <input
+        ref={addPhotosRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleAddPhotos(e.target.files)}
+      />
+
       {/* Actions */}
       <div className="flex gap-3 mt-4 justify-center">
+        <button
+          onClick={() => addPhotosRef.current?.click()}
+          disabled={isUploading}
+          className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors disabled:opacity-50"
+        >
+          {isUploading ? "Adding photos..." : "+ Add photos"}
+        </button>
         <button
           onClick={handleExportPdf}
           disabled={isExporting}

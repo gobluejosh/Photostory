@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { SavedBook, BookPage } from "@/lib/types";
+import { processPhotos } from "@/lib/images";
 
 export default function SavedBookPage() {
   const params = useParams();
@@ -17,7 +18,9 @@ export default function SavedBookPage() {
   const [editInput, setEditInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [shareLabel, setShareLabel] = useState("Share link");
+  const addPhotosRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -100,6 +103,66 @@ export default function SavedBookPage() {
       console.error("Edit error:", error);
     } finally {
       setIsEditing(false);
+    }
+  };
+
+  const handleAddPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !savedBook) return;
+    setIsUploading(true);
+    try {
+      const newPhotos = await processPhotos(Array.from(files));
+      if (newPhotos.length > 0) {
+        const newPhotoUrls: Record<string, string> = {};
+        for (const p of newPhotos) {
+          newPhotoUrls[p.id] = p.fullUrl;
+        }
+
+        // Score the new photos via the curate API
+        const thumbnails = newPhotos.map((p) => ({
+          id: p.id,
+          dataUrl: p.thumbnailDataUrl,
+        }));
+        let newScores: { photoId: string; score: number; reason: string; tags: string[]; contentHash: string }[] = [];
+        try {
+          const res = await fetch("/api/curate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              thumbnails,
+              interviewAnswers: { summary: savedBook.interviewSummary },
+              pass: "first",
+            }),
+          });
+          const data = await res.json();
+          if (data.scores) {
+            newScores = data.scores;
+          }
+        } catch {
+          // Fallback: assign default scores if scoring fails
+          newScores = newPhotos.map((p) => ({
+            photoId: p.id,
+            score: 7,
+            reason: "Newly added photo (not scored)",
+            tags: ["added"],
+            contentHash: `new_${p.id}`,
+          }));
+        }
+
+        const updated: SavedBook = {
+          ...savedBook,
+          photoUrls: { ...savedBook.photoUrls, ...newPhotoUrls },
+          photoScores: [...savedBook.photoScores, ...newScores],
+          allPhotoIds: [...savedBook.allPhotoIds, ...newPhotos.map((p) => p.id)],
+          updatedAt: new Date().toISOString(),
+        };
+        setSavedBook(updated);
+        saveBook(updated);
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      setIsUploading(false);
+      if (addPhotosRef.current) addPhotosRef.current.value = "";
     }
   };
 
@@ -426,8 +489,25 @@ export default function SavedBookPage() {
           </button>
         </div>
 
+        {/* Add photos */}
+        <input
+          ref={addPhotosRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleAddPhotos(e.target.files)}
+        />
+
         {/* Actions */}
         <div className="flex gap-3 mt-4 justify-center">
+          <button
+            onClick={() => addPhotosRef.current?.click()}
+            disabled={isUploading}
+            className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors disabled:opacity-50"
+          >
+            {isUploading ? "Adding photos..." : "+ Add photos"}
+          </button>
           <button
             onClick={async () => {
               const url = `${window.location.origin}/book/${bookId}`;
