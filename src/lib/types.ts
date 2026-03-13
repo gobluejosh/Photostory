@@ -61,6 +61,24 @@ export interface AppState {
   interviewAnswers: InterviewAnswers | null;
   photoScores: PhotoScore[];
   book: PhotoBook | null;
+  bookId: string | null;
   isLoading: boolean;
   loadingMessage: string;
+}
+
+// Persisted book data stored in Vercel Blob
+export interface SavedBook {
+  id: string;
+  book: PhotoBook;
+  // Map of photoId → fullUrl for rendering
+  photoUrls: Record<string, string>;
+  // Scores for all photos (included and excluded) with reasons
+  photoScores: PhotoScore[];
+  // IDs of photos used in the book
+  usedPhotoIds: string[];
+  // All photo IDs (for the rejected panel)
+  allPhotoIds: string[];
+  interviewSummary: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useApp } from "@/lib/store";
-import { BookPage } from "@/lib/types";
+import { BookPage, PhotoScore, SavedBook } from "@/lib/types";
 
 export default function BookViewer() {
   const { state, dispatch } = useApp();
@@ -10,8 +10,11 @@ export default function BookViewer() {
   const [editInput, setEditInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showRejected, setShowRejected] = useState(false);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const bookRef = useRef<HTMLDivElement>(null);
+  const hasSavedRef = useRef(false);
 
   const goTo = useCallback(
     (page: number) => {
@@ -22,6 +25,76 @@ export default function BookViewer() {
     },
     [currentPage, state.book]
   );
+
+  // --- Auto-save book on creation ---
+  const saveBook = useCallback(async () => {
+    if (!state.book) return;
+    setIsSaving(true);
+    try {
+      const bookId = state.bookId || `book_${Date.now()}`;
+      const usedPhotoIds = state.book.pages.flatMap((p) => p.photoIds);
+      const photoUrls: Record<string, string> = {};
+      for (const photo of state.photos) {
+        photoUrls[photo.id] = photo.fullUrl;
+      }
+
+      const savedBook: SavedBook = {
+        id: bookId,
+        book: state.book,
+        photoUrls,
+        photoScores: state.photoScores,
+        usedPhotoIds: [...new Set(usedPhotoIds)],
+        allPhotoIds: state.photos.map((p) => p.id),
+        interviewSummary: state.interviewAnswers?.summary || "",
+        createdAt: state.bookId ? new Date().toISOString() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(savedBook),
+      });
+
+      if (!state.bookId) {
+        dispatch({ type: "SET_BOOK_ID", bookId });
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [state.book, state.bookId, state.photos, state.photoScores, state.interviewAnswers, dispatch]);
+
+  // Auto-save on first render (book creation)
+  useEffect(() => {
+    if (state.book && !hasSavedRef.current) {
+      hasSavedRef.current = true;
+      saveBook();
+    }
+  }, [state.book, saveBook]);
+
+  // --- Rejected photos logic ---
+  const { rejectedPhotos, usedPhotoIds } = useMemo(() => {
+    if (!state.book) return { rejectedPhotos: [], usedPhotoIds: new Set<string>() };
+
+    const used = new Set(state.book.pages.flatMap((p) => p.photoIds));
+
+    const scoreMap = new Map<string, PhotoScore>();
+    for (const s of state.photoScores) {
+      scoreMap.set(s.photoId, s);
+    }
+
+    const rejected = state.photos
+      .filter((p) => !used.has(p.id))
+      .map((p) => ({
+        photo: p,
+        score: scoreMap.get(p.id),
+      }))
+      .sort((a, b) => (b.score?.score || 0) - (a.score?.score || 0));
+
+    return { rejectedPhotos: rejected, usedPhotoIds: used };
+  }, [state.book, state.photos, state.photoScores]);
 
   if (!state.book) return null;
 
@@ -66,6 +139,8 @@ export default function BookViewer() {
       if (data.book) {
         dispatch({ type: "SET_BOOK", book: data.book });
         setEditInput("");
+        // Save after edit
+        setTimeout(() => saveBook(), 100);
       }
     } catch (error) {
       console.error("Edit error:", error);
@@ -89,9 +164,9 @@ export default function BookViewer() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const usedPhotoIds = new Set(pages.flatMap((p) => p.photoIds));
+      const usedIds = new Set(pages.flatMap((p) => p.photoIds));
       const imageCache: Record<string, string> = {};
-      for (const id of usedPhotoIds) {
+      for (const id of usedIds) {
         const photo = getPhoto(id);
         if (photo) {
           try {
@@ -115,13 +190,15 @@ export default function BookViewer() {
         if (!firstPage) pdf.addPage([W, H], "landscape");
         firstPage = false;
 
-        // Cream background
         pdf.setFillColor(248, 246, 243);
         pdf.rect(0, 0, W, H, "F");
 
         const addImg = (id: string, x: number, y: number, w: number, h: number) => {
           const d = imageCache[id];
-          if (d) try { pdf.addImage(d, "JPEG", x, y, w, h); } catch {}
+          if (d)
+            try {
+              pdf.addImage(d, "JPEG", x, y, w, h);
+            } catch {}
         };
 
         switch (page.type) {
@@ -193,7 +270,6 @@ export default function BookViewer() {
             break;
           }
           default: {
-            // single / closing
             addImg(page.photoIds[0], 120, 40, 560, 420);
             if (page.caption) {
               pdf.setFontSize(10);
@@ -230,11 +306,7 @@ export default function BookViewer() {
       <div className="flex flex-col items-center justify-center h-full px-10 sm:px-16 py-10">
         {photo && (
           <div className="flex-1 w-full flex items-center justify-center min-h-0 mb-6">
-            <img
-              src={photo.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         <Divider />
@@ -242,7 +314,10 @@ export default function BookViewer() {
           {book.title}
         </h1>
         {book.subtitle && (
-          <p className="book-sans text-xs sm:text-sm mt-2 tracking-wide uppercase" style={{ color: "var(--book-caption)", letterSpacing: "0.12em" }}>
+          <p
+            className="book-sans text-xs sm:text-sm mt-2 tracking-wide uppercase"
+            style={{ color: "var(--book-caption)", letterSpacing: "0.12em" }}
+          >
             {book.subtitle}
           </p>
         )}
@@ -254,13 +329,7 @@ export default function BookViewer() {
     const photo = getPhoto(page.photoIds[0]);
     return (
       <div className="relative h-full w-full">
-        {photo && (
-          <img
-            src={photo.fullUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
+        {photo && <img src={photo.fullUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
         {page.caption && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-8 pb-5 pt-12">
             <p className="text-white/90 text-xs sm:text-sm book-sans">{page.caption}</p>
@@ -278,20 +347,12 @@ export default function BookViewer() {
         <div className="flex-1 flex gap-3 sm:gap-5 min-h-0">
           {photo1 && (
             <div className="flex-1 flex items-center justify-center">
-              <img
-                src={photo1.fullUrl}
-                alt=""
-                className="max-w-full max-h-full object-contain book-photo"
-              />
+              <img src={photo1.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
             </div>
           )}
           {photo2 && (
             <div className="flex-1 flex items-center justify-center">
-              <img
-                src={photo2.fullUrl}
-                alt=""
-                className="max-w-full max-h-full object-contain book-photo"
-              />
+              <img src={photo2.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
             </div>
           )}
         </div>
@@ -311,11 +372,7 @@ export default function BookViewer() {
       <div className="flex flex-col items-center justify-center h-full px-10 sm:px-20 py-8 sm:py-12">
         {photo && (
           <div className="flex-1 flex items-center justify-center w-full min-h-0">
-            <img
-              src={photo.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         {page.caption && (
@@ -334,11 +391,7 @@ export default function BookViewer() {
       <div className="flex flex-col items-center justify-center h-full px-6 sm:px-10 py-12 sm:py-16">
         {photo && (
           <div className="w-full flex items-center justify-center" style={{ maxHeight: "55%" }}>
-            <img
-              src={photo.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         {page.caption && (
@@ -356,34 +409,20 @@ export default function BookViewer() {
     return (
       <div className="flex flex-col h-full px-6 sm:px-10 py-6 sm:py-8">
         <div className="flex-1 flex flex-col gap-2 sm:gap-3 min-h-0">
-          {/* Top: large photo */}
           {photos[0] && (
             <div className="flex-[2] flex items-center justify-center min-h-0">
-              <img
-                src={photos[0]!.fullUrl}
-                alt=""
-                className="max-w-full max-h-full object-contain book-photo"
-              />
+              <img src={photos[0]!.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
             </div>
           )}
-          {/* Bottom: two smaller photos */}
           <div className="flex-1 flex gap-2 sm:gap-3 min-h-0">
             {photos[1] && (
               <div className="flex-1 flex items-center justify-center">
-                <img
-                  src={photos[1]!.fullUrl}
-                  alt=""
-                  className="max-w-full max-h-full object-contain book-photo"
-                />
+                <img src={photos[1]!.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
               </div>
             )}
             {photos[2] && (
               <div className="flex-1 flex items-center justify-center">
-                <img
-                  src={photos[2]!.fullUrl}
-                  alt=""
-                  className="max-w-full max-h-full object-contain book-photo"
-                />
+                <img src={photos[2]!.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
               </div>
             )}
           </div>
@@ -397,17 +436,11 @@ export default function BookViewer() {
     const photo = getPhoto(page.photoIds[0]);
     return (
       <div className="flex h-full px-6 sm:px-10 py-6 sm:py-10 gap-6 sm:gap-10">
-        {/* Photo takes ~65% */}
         {photo && (
           <div className="flex-[3] flex items-center justify-center min-h-0">
-            <img
-              src={photo.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
-        {/* Caption takes ~35% */}
         {page.caption && (
           <div className="flex-[2] flex flex-col justify-center">
             <div className="book-divider mb-4" />
@@ -425,20 +458,12 @@ export default function BookViewer() {
       <div className="flex flex-col h-full px-10 sm:px-16 py-6 sm:py-8 gap-3 sm:gap-4">
         {photo1 && (
           <div className="flex-1 flex items-center justify-center min-h-0">
-            <img
-              src={photo1.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo1.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         {photo2 && (
           <div className="flex-1 flex items-center justify-center min-h-0">
-            <img
-              src={photo2.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo2.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         <Caption text={page.caption} className="text-center" />
@@ -450,10 +475,7 @@ export default function BookViewer() {
     return (
       <div className="flex flex-col items-center justify-center h-full px-12 sm:px-24 py-16">
         <div className="book-divider mb-6" />
-        <p
-          className="book-serif text-xl sm:text-3xl text-center leading-snug"
-          style={{ color: "var(--book-text)" }}
-        >
+        <p className="book-serif text-xl sm:text-3xl text-center leading-snug" style={{ color: "var(--book-text)" }}>
           {page.textContent || page.caption || ""}
         </p>
         {page.subtitle && (
@@ -475,11 +497,7 @@ export default function BookViewer() {
       <div className="flex flex-col items-center justify-center h-full px-12 sm:px-20 py-10 sm:py-14">
         {photo && (
           <div className="flex-1 flex items-center justify-center w-full min-h-0 mb-4">
-            <img
-              src={photo.fullUrl}
-              alt=""
-              className="max-w-full max-h-full object-contain book-photo"
-            />
+            <img src={photo.fullUrl} alt="" className="max-w-full max-h-full object-contain book-photo" />
           </div>
         )}
         <Divider />
@@ -526,6 +544,19 @@ export default function BookViewer() {
 
   return (
     <div className="flex flex-col w-full max-w-3xl mx-auto px-4 h-full">
+      {/* Header with My Books link */}
+      <div className="flex items-center justify-between mb-4">
+        <a href="/books" className="text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors">
+          &larr; My Books
+        </a>
+        {isSaving && (
+          <span className="text-xs text-stone-400 book-sans animate-pulse">Saving...</span>
+        )}
+        {!isSaving && state.bookId && (
+          <span className="text-xs text-stone-400 book-sans">Saved</span>
+        )}
+      </div>
+
       {/* Book display */}
       <div
         ref={bookRef}
@@ -570,11 +601,7 @@ export default function BookViewer() {
           value={editInput}
           onChange={(e) => setEditInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleEdit()}
-          placeholder={
-            isEditing
-              ? "Updating your book..."
-              : 'Edit with natural language... e.g. "swap page 3 photo"'
-          }
+          placeholder={isEditing ? "Updating your book..." : 'Edit with natural language... e.g. "swap page 3 photo"'}
           disabled={isEditing}
           className="flex-1 border border-stone-200 rounded-full px-4 py-2.5 text-sm book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white"
         />
@@ -588,7 +615,7 @@ export default function BookViewer() {
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 mt-4 mb-6 justify-center">
+      <div className="flex gap-3 mt-4 justify-center">
         <button
           onClick={handleExportPdf}
           disabled={isExporting}
@@ -598,10 +625,13 @@ export default function BookViewer() {
         </button>
         <button
           onClick={() => {
-            const url = window.location.href;
-            navigator.clipboard?.writeText(url);
+            if (state.bookId) {
+              const url = `${window.location.origin}/book/${state.bookId}`;
+              navigator.clipboard?.writeText(url);
+            }
           }}
-          className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors"
+          disabled={!state.bookId}
+          className="border border-stone-200 rounded-full px-5 py-2 text-sm book-sans hover:bg-stone-50 transition-colors disabled:opacity-50"
         >
           Share link
         </button>
@@ -612,6 +642,55 @@ export default function BookViewer() {
           Start over
         </button>
       </div>
+
+      {/* Rejected photos panel */}
+      {rejectedPhotos.length > 0 && (
+        <div className="mt-6 mb-8">
+          <button
+            onClick={() => setShowRejected(!showRejected)}
+            className="flex items-center gap-2 text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors mx-auto"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className={`transition-transform ${showRejected ? "rotate-90" : ""}`}
+            >
+              <path d="M4 2L8 6L4 10" />
+            </svg>
+            {rejectedPhotos.length} photos not included
+          </button>
+
+          {showRejected && (
+            <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+              {rejectedPhotos.map(({ photo, score }) => (
+                <div key={photo.id} className="group">
+                  <div className="aspect-square rounded overflow-hidden bg-stone-100 relative">
+                    <img
+                      src={photo.thumbnailDataUrl || photo.fullUrl}
+                      alt=""
+                      className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
+                    />
+                    {score && (
+                      <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full book-sans">
+                        {score.score}/10
+                      </div>
+                    )}
+                  </div>
+                  {score?.reason && (
+                    <p className="text-[10px] text-stone-400 mt-1 leading-tight line-clamp-2 book-sans">
+                      {score.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
