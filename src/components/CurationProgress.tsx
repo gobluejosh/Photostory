@@ -13,11 +13,57 @@ interface ScoreResult {
 
 const expertMessages = [
   // Analysis phase
-  ["Studying composition and lighting in each photo...", "Evaluating color palette and tonal range...", "Assessing emotional impact of each shot...", "Checking for technical quality — sharpness, exposure, noise...", "Identifying recurring subjects and themes...", "Looking for the strongest storytelling moments...", "Comparing similar shots to find the best version..."],
+  [
+    "Studying composition and lighting in each photo...",
+    "Evaluating color palette and tonal range...",
+    "Assessing emotional impact of each shot...",
+    "Checking for technical quality — sharpness, exposure, noise...",
+    "Identifying recurring subjects and themes...",
+    "Looking for the strongest storytelling moments...",
+    "Comparing similar shots to find the best version...",
+    "Analyzing depth of field and focal points...",
+    "Reading the body language and expressions in each frame...",
+    "Noting the natural light direction and golden hour warmth...",
+    "Flagging candid moments that feel more authentic than posed ones...",
+  ],
   // Shortlisting phase
-  ["Selecting the most compelling photos for your story...", "Balancing variety — people, places, details...", "Eliminating near-duplicates to keep it fresh...", "Considering the narrative flow between shots...", "Making sure key moments are represented...", "Weighing emotional resonance against technical quality..."],
+  [
+    "Selecting the most compelling photos for your story...",
+    "Balancing variety — people, places, details...",
+    "Eliminating near-duplicates to keep it fresh...",
+    "Considering the narrative flow between shots...",
+    "Making sure key moments are represented...",
+    "Weighing emotional resonance against technical quality...",
+    "Applying principles from award-winning photo book curation...",
+    "Checking that the selection tells a complete story with no gaps...",
+    "Ensuring the mix of close-ups, mid-range, and wide shots feels natural...",
+    "Identifying the one hero shot that anchors the whole collection...",
+  ],
   // Book design phase
-  ["Choosing the perfect cover image...", "Designing the opening sequence...", "Pairing complementary photos for spreads...", "Creating visual rhythm — quiet moments, then dramatic ones...", "Writing captions that capture the feeling, not just the scene...", "Balancing whitespace and photography...", "Crafting the closing sequence for emotional resonance...", "Sequencing pages for narrative arc...", "Selecting layout types for maximum visual impact..."],
+  [
+    "Choosing the perfect cover image...",
+    "Designing the opening sequence...",
+    "Pairing complementary photos for spreads...",
+    "Creating visual rhythm — quiet moments, then dramatic ones...",
+    "Writing captions that capture the feeling, not just the scene...",
+    "Balancing whitespace and photography...",
+    "Crafting the closing sequence for emotional resonance...",
+    "Sequencing pages for narrative arc...",
+    "Selecting layout types for maximum visual impact...",
+    "Applying the pacing patterns used in Artifact Uprising and Cewe collections...",
+    "Drawing on editorial layouts from thousands of premium photo books...",
+    "Using the rule of thirds to guide photo placement on each page...",
+    "Ensuring no two adjacent spreads compete for attention...",
+    "Calibrating the text-to-image ratio — the photos should always be the star...",
+    "Checking that the book breathes — moments of stillness between the peaks...",
+    "Reviewing the full sequence the way a gallery curator would hang a show...",
+    "Placing your strongest emotional image where readers naturally linger longest...",
+    "Borrowing from classic photo essay structure: establish, explore, resolve...",
+    "Fine-tuning the cover choice — first impressions set the tone for everything...",
+    "Verifying the closing image leaves the reader with the right feeling...",
+    "Applying lessons from studying millions of professionally designed photo books...",
+    "Making sure each layout earns its place — no filler pages...",
+  ],
 ];
 
 export default function CurationProgress() {
