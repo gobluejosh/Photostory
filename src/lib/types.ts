@@ -13,15 +13,27 @@ export interface PhotoScore {
   photoId: string;
   score: number; // 1-10
   reason: string;
-  tags: string[]; // e.g. "group", "landscape", "food", "portrait"
+  tags: string[];
+  contentHash?: string;
 }
 
 export interface BookPage {
   id: string;
-  type: "cover" | "spread" | "single" | "closing";
+  type:
+    | "cover"        // hero photo + title/subtitle overlay or below
+    | "spread"       // 2 photos side-by-side
+    | "single"       // 1 prominent photo with caption
+    | "full-bleed"   // edge-to-edge photo, no margins
+    | "text-page"    // chapter title or pull-quote, no photo
+    | "grid"         // 3 photos in a composed grid
+    | "panoramic"    // wide photo with generous vertical margins
+    | "offset"       // photo offset to one side, caption on the other
+    | "duo-stacked"  // 2 photos stacked vertically
+    | "closing";     // reflective ending
   photoIds: string[];
   caption?: string;
-  subtitle?: string; // for cover page
+  subtitle?: string;     // for cover or text-page
+  textContent?: string;  // for text-page type
 }
 
 export interface PhotoBook {

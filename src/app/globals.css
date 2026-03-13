@@ -3,6 +3,12 @@
 :root {
   --background: #fafafa;
   --foreground: #111111;
+  --book-bg: #f8f6f3;
+  --book-cream: #f5f0eb;
+  --book-text: #2c2c2c;
+  --book-caption: #6b6560;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 @theme inline {
@@ -13,5 +19,70 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Book page styles */
+.book-page {
+  background: var(--book-bg);
+  font-family: var(--font-sans);
+}
+
+.book-serif {
+  font-family: var(--font-serif);
+}
+
+.book-sans {
+  font-family: var(--font-sans);
+}
+
+/* Page turn animation */
+.page-enter {
+  animation: pageIn 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.page-enter-reverse {
+  animation: pageInReverse 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes pageInReverse {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Photo hover lift in book */
+.book-photo {
+  transition: box-shadow 0.3s ease;
+}
+
+/* Caption styling */
+.book-caption {
+  color: var(--book-caption);
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+}
+
+/* Thin rule divider */
+.book-divider {
+  width: 40px;
+  height: 1px;
+  background: #d4cfc9;
 }
