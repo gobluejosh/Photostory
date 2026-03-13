@@ -18,21 +18,31 @@ export default function PhotoUpload() {
       dispatch({ type: "SET_LOADING", isLoading: true, message: `Processing ${fileArray.length} photos...` });
 
       try {
-        // Process in batches of 5 to avoid blocking
-        const batchSize = 5;
+        let totalProcessed = 0;
+        let totalSkipped = 0;
+        // Process in batches of 3 to keep memory low on mobile
+        const batchSize = 3;
         for (let i = 0; i < fileArray.length; i += batchSize) {
           const batch = fileArray.slice(i, i + batchSize);
           const photos = await processPhotos(batch);
-          dispatch({ type: "ADD_PHOTOS", photos });
+          totalSkipped += batch.filter((f) => f.type.startsWith("image/")).length - photos.length;
+          if (photos.length > 0) {
+            dispatch({ type: "ADD_PHOTOS", photos });
+          }
+          totalProcessed += photos.length;
           dispatch({
             type: "SET_LOADING",
             isLoading: true,
             message: `Processed ${Math.min(i + batchSize, fileArray.length)} of ${fileArray.length} photos...`,
           });
         }
+        if (totalSkipped > 0) {
+          setError(`${totalSkipped} photo(s) couldn't be processed (unsupported format). ${totalProcessed} added successfully.`);
+        }
       } catch (err) {
         console.error("Photo processing error:", err);
-        setError("Something went wrong processing your photos. Please try again.");
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setError(`Error processing photos: ${message}`);
       } finally {
         dispatch({ type: "SET_LOADING", isLoading: false });
       }

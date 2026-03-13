@@ -22,26 +22,35 @@ function resizeImage(
   maxWidth: number,
   maxHeight: number
 ): Promise<{ dataUrl: string; width: number; height: number }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      let { width, height } = img;
-      if (width > maxWidth || height > maxHeight) {
-        const ratio = Math.min(maxWidth / width, maxHeight / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
+      try {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve({
+          dataUrl: canvas.toDataURL("image/jpeg", 0.8),
+          width,
+          height,
+        });
+      } catch (err) {
+        reject(err);
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve({
-        dataUrl: canvas.toDataURL("image/jpeg", 0.8),
-        width,
-        height,
-      });
     };
+    img.onerror = () => reject(new Error("Failed to load image"));
     img.src = dataUrl;
   });
 }
