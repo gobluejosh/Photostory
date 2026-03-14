@@ -22,6 +22,7 @@ export default function SavedBookPage() {
   const [shareLabel, setShareLabel] = useState("Share link");
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const addPhotosRef = useRef<HTMLInputElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -497,6 +498,25 @@ export default function SavedBookPage() {
             <a href="/" className="text-xs text-stone-400 hover:text-stone-600 book-sans transition-colors">
               Create new book
             </a>
+            <button
+              onClick={async () => {
+                if (!confirm("Delete this book? This can't be undone.")) return;
+                setIsDeleting(true);
+                try {
+                  await fetch(`/api/books/${bookId}`, { method: "DELETE" });
+                  window.location.href = "/books";
+                } catch {
+                  setIsDeleting(false);
+                }
+              }}
+              disabled={isDeleting}
+              className="text-stone-300 hover:text-red-500 transition-colors p-1"
+              aria-label="Delete book"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z" />
+              </svg>
+            </button>
           </div>
         </div>
 
