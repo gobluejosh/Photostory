@@ -625,8 +625,8 @@ export default function SavedBookPage() {
             }}
             placeholder={isEditing ? "Updating your book..." : 'Edit with natural language... e.g. "swap page 3 photo"'}
             disabled={isEditing}
-            rows={1}
-            className="flex-1 border border-stone-200 rounded-2xl px-4 py-2.5 text-base book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white resize-none overflow-hidden"
+            rows={2}
+            className="flex-1 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm book-sans focus:outline-none focus:border-stone-400 disabled:opacity-50 bg-white resize-none overflow-hidden"
             style={{ fontSize: "16px" }}
           />
           <button
