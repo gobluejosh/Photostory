@@ -511,7 +511,7 @@ export default function SavedBookPage() {
 
         {/* Book display — layflat spread (narrower for cover) */}
         <div
-          className={`rounded-sm shadow-xl border border-stone-200/60 w-full flex overflow-hidden touch-pan-y relative group transition-all duration-500 ${currentSpread === 0 ? "aspect-[3/4] max-w-sm mx-auto" : "aspect-[2/1]"}`}
+          className={`rounded-sm shadow-xl border border-stone-200/60 w-full flex overflow-hidden touch-pan-y relative group transition-all duration-500 ${currentSpread === 0 ? "aspect-[1/1] max-w-sm mx-auto" : "aspect-[2/1]"}`}
           onTouchStart={(e) => {
             const t = e.touches[0];
             touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -693,7 +693,7 @@ export default function SavedBookPage() {
                 <path d="M6 2v4H2M14 2v4h4M14 18v-4h4M6 18v-4H2" />
               </svg>
             </button>
-            <div className={`rounded-sm ${currentSpread === 0 ? "aspect-[3/4] max-w-md" : "aspect-[2/1] max-w-6xl"} w-full max-h-[90vh] flex overflow-hidden mx-4`}>
+            <div className={`rounded-sm ${currentSpread === 0 ? "aspect-[1/1] max-w-md" : "aspect-[2/1] max-w-6xl"} w-full max-h-[90vh] flex overflow-hidden mx-4`}>
               {(() => {
                 const [leftIdx, rightIdx] = spreads[currentSpread] || [null, null];
                 if (currentSpread === 0) {
