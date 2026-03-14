@@ -19,6 +19,7 @@ export default function BookViewer() {
   const bookRef = useRef<HTMLDivElement>(null);
   const hasSavedRef = useRef(false);
   const addPhotosRef = useRef<HTMLInputElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const goTo = useCallback(
     (page: number) => {
@@ -180,11 +181,29 @@ export default function BookViewer() {
         })
         .filter((p) => p.thumbnailDataUrl);
 
+      // Build a mapping of unused photo numbers (U1, U2, ...) to photo IDs
+      // so the user can say "add unused photo 3" and Claude knows which photo
+      const unusedMapping: Record<string, string> = {};
+      rejectedPhotos.forEach(({ photo }, i) => {
+        unusedMapping[`U${i + 1}`] = photo.id;
+      });
+
+      // Resolve any "unused photo N" / "unused #N" / "U3" references in the instruction
+      const resolvedInstruction = editInput.replace(
+        /(?:unused\s+(?:photo\s*)?#?\s*|U)(\d+)/gi,
+        (match, numStr) => {
+          const key = `U${numStr}`;
+          const photoId = unusedMapping[key];
+          if (photoId) return `${match} [photo ID: ${photoId}]`;
+          return match;
+        }
+      );
+
       const res = await fetch("/api/edit-book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          instruction: editInput,
+          instruction: resolvedInstruction,
           currentBook: book,
           availablePhotos,
           photoScores: state.photoScores,
@@ -617,7 +636,23 @@ export default function BookViewer() {
       {/* Book display */}
       <div
         ref={bookRef}
-        className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden"
+        className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden touch-pan-y"
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          touchStartRef.current = { x: t.clientX, y: t.clientY };
+        }}
+        onTouchEnd={(e) => {
+          if (!touchStartRef.current) return;
+          const t = e.changedTouches[0];
+          const dx = t.clientX - touchStartRef.current.x;
+          const dy = t.clientY - touchStartRef.current.y;
+          touchStartRef.current = null;
+          // Only trigger if horizontal swipe is dominant and long enough
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0) goTo(currentPage + 1);
+            else goTo(currentPage - 1);
+          }
+        }}
       >
         <div key={currentPage} className={`flex-1 min-h-0 ${animClass}`}>
           {renderPage(pages[currentPage])}
@@ -758,7 +793,7 @@ export default function BookViewer() {
             >
               <path d="M4 2L8 6L4 10" />
             </svg>
-            {rejectedPhotos.length} photos not included
+            {rejectedPhotos.length} unused photos — reference by U1, U2, etc.
           </button>
 
           {showRejected && (
@@ -771,8 +806,8 @@ export default function BookViewer() {
                       alt=""
                       className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                     />
-                    <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
-                      {index + 1}
+                    <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
+                      U{index + 1}
                     </div>
                     {score && (
                       <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full book-sans">

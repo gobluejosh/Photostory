@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { SavedBook, BookPage } from "@/lib/types";
 import { processPhotos } from "@/lib/images";
@@ -21,6 +21,7 @@ export default function SavedBookPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [shareLabel, setShareLabel] = useState("Share link");
   const addPhotosRef = useRef<HTMLInputElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -63,6 +64,20 @@ export default function SavedBookPage() {
     }
   }, []);
 
+  // Memoize rejected photos for use in edit handler
+  const rejectedPhotosForEdit = useMemo(() => {
+    if (!savedBook) return [];
+    const used = new Set(savedBook.book.pages.flatMap((p) => p.photoIds));
+    return savedBook.allPhotoIds
+      .filter((id) => !used.has(id))
+      .filter((id) => savedBook.photoUrls[id])
+      .map((id) => ({
+        id,
+        score: savedBook.photoScores.find((s) => s.photoId === id),
+      }))
+      .sort((a, b) => (b.score?.score || 0) - (a.score?.score || 0));
+  }, [savedBook]);
+
   const handleEdit = async () => {
     if (!editInput.trim() || !savedBook) return;
     setIsEditing(true);
@@ -74,11 +89,23 @@ export default function SavedBookPage() {
         thumbnailDataUrl: url, // Use the full URL as thumbnail for the API
       }));
 
+      // Resolve "unused photo N" / "U3" references to photo IDs
+      const resolvedInstruction = editInput.replace(
+        /(?:unused\s+(?:photo\s*)?#?\s*|U)(\d+)/gi,
+        (match, numStr) => {
+          const idx = parseInt(numStr, 10) - 1;
+          if (idx >= 0 && idx < rejectedPhotosForEdit.length) {
+            return `${match} [photo ID: ${rejectedPhotosForEdit[idx].id}]`;
+          }
+          return match;
+        }
+      );
+
       const res = await fetch("/api/edit-book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          instruction: editInput,
+          instruction: resolvedInstruction,
           currentBook: savedBook.book,
           availablePhotos,
           photoScores: savedBook.photoScores,
@@ -426,7 +453,24 @@ export default function SavedBookPage() {
         </div>
 
         {/* Book display */}
-        <div className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden">
+        <div
+          className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden touch-pan-y"
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            touchStartRef.current = { x: t.clientX, y: t.clientY };
+          }}
+          onTouchEnd={(e) => {
+            if (!touchStartRef.current) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - touchStartRef.current.x;
+            const dy = t.clientY - touchStartRef.current.y;
+            touchStartRef.current = null;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+              if (dx < 0) goTo(currentPage + 1);
+              else goTo(currentPage - 1);
+            }
+          }}
+        >
           <div key={currentPage} className={`flex-1 min-h-0 ${animClass}`}>
             {renderPage(pages[currentPage])}
           </div>
@@ -550,7 +594,7 @@ export default function SavedBookPage() {
               >
                 <path d="M4 2L8 6L4 10" />
               </svg>
-              {rejectedPhotos.length} photos not included
+              {rejectedPhotos.length} unused photos — reference by U1, U2, etc.
             </button>
 
             {showRejected && (
@@ -563,8 +607,8 @@ export default function SavedBookPage() {
                         alt=""
                         className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                       />
-                      <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
-                        {index + 1}
+                      <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 h-5 flex items-center justify-center rounded-full book-sans font-medium">
+                        U{index + 1}
                       </div>
                       {score && (
                         <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full book-sans">
