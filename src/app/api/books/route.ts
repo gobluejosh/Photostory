@@ -1,4 +1,4 @@
-import { put, list } from "@vercel/blob";
+import { put, list, del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { SavedBook } from "@/lib/types";
 
@@ -64,5 +64,23 @@ export async function GET() {
   } catch (error) {
     console.error("List books error:", error);
     return NextResponse.json({ error: "Failed to list books" }, { status: 500 });
+  }
+}
+
+// DELETE: Remove all saved books
+export async function DELETE() {
+  try {
+    const { blobs } = await list({ prefix: "photostory/books/" });
+
+    if (blobs.length === 0) {
+      return NextResponse.json({ deleted: 0 });
+    }
+
+    await del(blobs.map((b) => b.url));
+
+    return NextResponse.json({ deleted: blobs.length });
+  } catch (error) {
+    console.error("Delete all books error:", error);
+    return NextResponse.json({ error: "Failed to delete books" }, { status: 500 });
   }
 }
