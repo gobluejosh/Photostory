@@ -69,6 +69,9 @@ export default function PhotoUpload() {
         <p className="text-gray-500 text-sm">
           Upload your photos and we'll craft a beautiful photo book
         </p>
+        <p className="text-gray-400 text-xs mt-2 max-w-sm mx-auto leading-relaxed">
+          Go ahead and upload everything you might want to include — we'll curate the best shots together.
+        </p>
       </div>
 
       <div
