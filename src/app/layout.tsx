@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Photostory",
-  description: "AI-powered photo book creator",
+  description: "Beautiful photo books, effortlessly designed",
 };
 
 export default function RootLayout({

@@ -46,8 +46,8 @@ Your job: study these photos carefully and generate exactly 3 short, focused int
 
 CRITICAL RULES:
 - Exactly 3 questions. No more, no less.
-- Each question must be a SINGLE, simple question. NO multi-part questions. NO "and also" or "Do you X? And what about Y?" — one thing per question.
-- Keep questions SHORT — 1-2 sentences max.
+- STRICTLY ONE question per item. Each item must contain exactly ONE question mark. NEVER combine two questions with "and", "also", "or", commas, or semicolons. Bad: "Who are these people and what's the occasion?" Good: "It looks like a family vacation — who are the key people here?"
+- Keep questions SHORT — 1-2 sentences max. The first sentence can be an observation, the second is the single question.
 - Be warm and conversational.
 
 BEFORE WRITING QUESTIONS, analyze the photos internally:

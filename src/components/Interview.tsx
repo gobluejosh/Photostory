@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useApp } from "@/lib/store";
 
 interface Question {
   id: string;
   question: string;
   options?: string[]; // If present, render as multiple-choice instead of free text
+}
+
+interface ScoreResult {
+  photoId: string;
+  score: number;
+  reason: string;
+  tags: string[];
+  contentHash: string;
 }
 
 const fallbackQuestions: Question[] = [
@@ -24,7 +32,12 @@ export default function Interview() {
   const [inputValue, setInputValue] = useState("");
   const [animating, setAnimating] = useState(false);
   const [cardState, setCardState] = useState<"enter" | "exit">("enter");
+  const [finishing, setFinishing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Background scoring state
+  const backgroundScoresRef = useRef<ScoreResult[]>([]);
+  const scoringDoneRef = useRef(false);
 
   // Sample photos sent to the API (up to 12 evenly spaced)
   const samplePhotos = useMemo(() => {
@@ -50,6 +63,43 @@ export default function Interview() {
       ],
     };
   }, [state.photos.length]);
+
+  // --- Background Pass 1 scoring (runs during the interview) ---
+  const startBackgroundScoring = useCallback(async () => {
+    const thumbnails = state.photos.map((p) => ({
+      id: p.id,
+      dataUrl: p.thumbnailDataUrl,
+    }));
+
+    const batchSize = 8;
+    const allScores: ScoreResult[] = [];
+
+    for (let i = 0; i < thumbnails.length; i += batchSize) {
+      const batch = thumbnails.slice(i, i + batchSize);
+      try {
+        const res = await fetch("/api/curate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            thumbnails: batch,
+            interviewAnswers: {
+              summary: "Score based on technical quality (sharpness, exposure, composition), emotional impact, and uniqueness. No specific creator context available yet — focus on identifying the strongest photos purely on merit.",
+            },
+            pass: "first",
+          }),
+        });
+        const data = await res.json();
+        if (data.scores) {
+          allScores.push(...data.scores);
+        }
+      } catch {
+        // Silently continue — CurationProgress will redo any missing scores
+      }
+    }
+
+    backgroundScoresRef.current = allScores;
+    scoringDoneRef.current = true;
+  }, [state.photos]);
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -85,7 +135,10 @@ export default function Interview() {
       }
     }
     fetchQuestions();
-  }, [state.photos, samplePhotos, photoCountQuestion]);
+
+    // Start background scoring in parallel with the interview
+    startBackgroundScoring();
+  }, [state.photos, samplePhotos, photoCountQuestion, startBackgroundScoring]);
 
   const advanceToNext = (newAnswers: Record<string, string>) => {
     if (currentQ < questions.length - 1) {
@@ -106,33 +159,49 @@ export default function Interview() {
   };
 
   const finishInterview = (finalAnswers: Record<string, string>) => {
-    const qaPairs = questions.map((q) => ({
-      question: q.question,
-      answer: finalAnswers[q.id] || "",
-    }));
+    // Show thank-you card, then transition
+    setAnimating(true);
+    setCardState("exit");
+    setTimeout(() => {
+      setFinishing(true);
+      setCardState("enter");
 
-    // Resolve photo number references (e.g. "#5", "photo 5") to photo IDs
-    const resolvePhotoRefs = (text: string): string => {
-      return text.replace(
-        /(?:#|photo\s*)(\d+)/gi,
-        (match, numStr) => {
-          const idx = parseInt(numStr, 10) - 1;
-          if (idx >= 0 && idx < state.photos.length) {
-            return `${match} [id:${state.photos[idx].id}]`;
-          }
-          return match;
+      // Build the summary and dispatch after a brief pause
+      setTimeout(() => {
+        const qaPairs = questions.map((q) => ({
+          question: q.question,
+          answer: finalAnswers[q.id] || "",
+        }));
+
+        const resolvePhotoRefs = (text: string): string => {
+          return text.replace(
+            /(?:#|photo\s*)(\d+)/gi,
+            (match, numStr) => {
+              const idx = parseInt(numStr, 10) - 1;
+              if (idx >= 0 && idx < state.photos.length) {
+                return `${match} [id:${state.photos[idx].id}]`;
+              }
+              return match;
+            }
+          );
+        };
+
+        const summary = qaPairs
+          .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
+          .join("\n\n");
+
+        // Store background scores if available
+        if (backgroundScoresRef.current.length > 0) {
+          dispatch({ type: "SET_PHOTO_SCORES", scores: backgroundScoresRef.current });
         }
-      );
-    };
 
-    const summary = qaPairs
-      .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
-      .join("\n\n");
-    dispatch({
-      type: "SET_INTERVIEW_ANSWERS",
-      answers: { qaPairs, summary },
-    });
-    dispatch({ type: "SET_STEP", step: "curating" });
+        dispatch({
+          type: "SET_INTERVIEW_ANSWERS",
+          answers: { qaPairs, summary },
+        });
+        dispatch({ type: "SET_STEP", step: "curating" });
+      }, 2000);
+    }, 300);
   };
 
   const handleSubmitAnswer = () => {
@@ -157,6 +226,37 @@ export default function Interview() {
       <div className="flex flex-col items-center justify-center w-full max-w-lg mx-auto px-4 py-12">
         <div className="animate-pulse text-gray-400 text-sm">
           Looking at your photos to craft the right questions...
+        </div>
+      </div>
+    );
+  }
+
+  // --- Thank-you card after final question ---
+  if (finishing) {
+    return (
+      <div className="flex flex-col w-full max-w-lg mx-auto px-4">
+        <div className="flex items-center justify-center gap-2 mb-6">
+          {questions.map((_, i) => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full bg-black" />
+          ))}
+        </div>
+
+        <div className={`bg-white rounded-2xl shadow-lg border border-gray-100 px-6 py-10 text-center ${cardState === "enter" ? "card-enter" : "card-exit"}`}>
+          <p className="text-lg font-medium text-gray-900 mb-2">
+            Thanks for those details!
+          </p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Now designing your book using your answers and our expertise from studying millions of photo books...
+          </p>
+          <div className="mt-6 flex justify-center">
+            <div className="flex gap-1">
+              {state.photos.slice(0, 5).map((photo) => (
+                <div key={photo.id} className="w-10 h-10 rounded overflow-hidden opacity-60">
+                  <img src={photo.thumbnailDataUrl} alt="" className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

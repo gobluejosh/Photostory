@@ -67,7 +67,7 @@ export default function PhotoUpload() {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-light tracking-tight mb-2">Photostory</h1>
         <p className="text-gray-500 text-sm">
-          Upload your photos and let AI craft a beautiful photo book
+          Upload your photos and we'll craft a beautiful photo book
         </p>
       </div>
 

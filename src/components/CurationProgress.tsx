@@ -104,35 +104,43 @@ export default function CurationProgress() {
           dataUrl: p.thumbnailDataUrl,
         }));
 
-        // --- Pass 1: Score all photos in small client-side batches ---
-        setStatus("Analyzing your photos...");
-        setProgress(5);
-        startMessageRotation(0);
-
         const batchSize = 8; // small enough to complete within Vercel timeout
         let allFirstPassScores: ScoreResult[] = [];
 
-        for (let i = 0; i < thumbnails.length; i += batchSize) {
-          const batch = thumbnails.slice(i, i + batchSize);
-          const batchNum = Math.floor(i / batchSize) + 1;
-          const totalBatches = Math.ceil(thumbnails.length / batchSize);
+        // Check if Pass 1 was already done in the background during the interview
+        if (state.photoScores.length > 0) {
+          allFirstPassScores = state.photoScores as ScoreResult[];
+          setStatus("Photo analysis complete — refining selection...");
+          setProgress(45);
+          startMessageRotation(0);
+        } else {
+          // --- Pass 1: Score all photos in small client-side batches ---
+          setStatus("Analyzing your photos...");
+          setProgress(5);
+          startMessageRotation(0);
 
-          setStatus(`Analyzing photos (batch ${batchNum}/${totalBatches})...`);
-          setProgress(5 + Math.round((i / thumbnails.length) * 40));
+          for (let i = 0; i < thumbnails.length; i += batchSize) {
+            const batch = thumbnails.slice(i, i + batchSize);
+            const batchNum = Math.floor(i / batchSize) + 1;
+            const totalBatches = Math.ceil(thumbnails.length / batchSize);
 
-          const res = await fetch("/api/curate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              thumbnails: batch,
-              interviewAnswers: state.interviewAnswers,
-              pass: "first",
-            }),
-          });
+            setStatus(`Analyzing photos (batch ${batchNum}/${totalBatches})...`);
+            setProgress(5 + Math.round((i / thumbnails.length) * 40));
 
-          const data = await res.json();
-          if (data.scores) {
-            allFirstPassScores = [...allFirstPassScores, ...data.scores];
+            const res = await fetch("/api/curate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                thumbnails: batch,
+                interviewAnswers: state.interviewAnswers,
+                pass: "first",
+              }),
+            });
+
+            const data = await res.json();
+            if (data.scores) {
+              allFirstPassScores = [...allFirstPassScores, ...data.scores];
+            }
           }
         }
 
