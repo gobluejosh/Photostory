@@ -289,18 +289,18 @@ export default function SavedBookPage() {
       case "cover": {
         const url = getPhotoUrl(page.photoIds[0]);
         return (
-          <div className="flex flex-col items-center justify-center h-full px-10 sm:px-16 py-10">
+          <div className="flex flex-col items-center justify-center h-full px-6 sm:px-10 py-6 sm:py-10 overflow-hidden">
             {url && (
-              <div className="flex-1 w-full flex items-center justify-center min-h-0 mb-6">
+              <div className="flex-1 w-full flex items-center justify-center min-h-0 mb-4 sm:mb-6">
                 <img src={url} alt="" className="max-w-full max-h-full object-contain book-photo" />
               </div>
             )}
             <Divider />
-            <h1 className="book-serif text-2xl sm:text-4xl text-center mt-3" style={{ color: "var(--book-text)" }}>
+            <h1 className="book-serif text-lg sm:text-2xl md:text-4xl text-center mt-2 sm:mt-3 w-full break-words" style={{ color: "var(--book-text)" }}>
               {book.title}
             </h1>
             {book.subtitle && (
-              <p className="book-sans text-xs sm:text-sm mt-2 tracking-wide uppercase" style={{ color: "var(--book-caption)", letterSpacing: "0.12em" }}>
+              <p className="book-sans text-[10px] sm:text-xs mt-1 sm:mt-2 tracking-wide uppercase w-full text-center break-words" style={{ color: "var(--book-caption)", letterSpacing: "0.12em" }}>
                 {book.subtitle}
               </p>
             )}

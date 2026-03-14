@@ -55,7 +55,7 @@ This book is displayed as a layflat photo book — pages are shown as two-page s
 - AIM FOR AN ODD total page count (so the last page sits alone on the left with a blank endpaper on the right, creating a clean ending).
 
 AVAILABLE PAGE LAYOUTS:
-- "cover" — 1 photo + title/subtitle. The opening impression. Pick the single most iconic, emotionally powerful shot.
+- "cover" — 1 photo + title/subtitle. The opening impression. Pick the single most iconic, emotionally powerful shot. TITLE MUST BE SHORT (max 4-5 words). Subtitle max 6-8 words. The cover is displayed small in edit mode — long text will overflow.
 - "full-bleed" — 1 photo, edge-to-edge with no margins. Use for breathtaking landscapes, dramatic moments, or the single best photo. Creates visual impact through scale. Use sparingly (1-2 max).
 - "spread" — 2 photos side-by-side. Use for complementary pairs: wide + detail, before + after, two perspectives on a moment. Photos should relate but not be redundant.
 - "single" — 1 photo with generous whitespace and optional caption. The workhorse layout. Elegant and focused.
