@@ -12,7 +12,7 @@ export default function SavedBookPage() {
   const [savedBook, setSavedBook] = useState<SavedBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentSpread, setCurrentSpread] = useState(0);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [showRejected, setShowRejected] = useState(false);
   const [editInput, setEditInput] = useState("");
@@ -41,14 +41,26 @@ export default function SavedBookPage() {
     load();
   }, [bookId]);
 
+  // Compute spreads: cover alone on right, then page pairs
+  const spreads: [number | null, number | null][] = useMemo(() => {
+    if (!savedBook) return [];
+    const result: [number | null, number | null][] = [[null, 0]]; // cover on right
+    for (let i = 1; i < savedBook.book.pages.length; i += 2) {
+      const right = i + 1 < savedBook.book.pages.length ? i + 1 : null;
+      result.push([i, right]);
+    }
+    return result;
+  }, [savedBook]);
+
+  const totalSpreads = spreads.length;
+
   const goTo = useCallback(
-    (page: number) => {
-      if (!savedBook) return;
-      const clamped = Math.max(0, Math.min(savedBook.book.pages.length - 1, page));
-      setDirection(clamped >= currentPage ? "forward" : "back");
-      setCurrentPage(clamped);
+    (spread: number) => {
+      const clamped = Math.max(0, Math.min(totalSpreads - 1, spread));
+      setDirection(clamped >= currentSpread ? "forward" : "back");
+      setCurrentSpread(clamped);
     },
-    [currentPage, savedBook]
+    [currentSpread, totalSpreads]
   );
 
   // Escape key exits fullscreen, arrow keys navigate
@@ -56,12 +68,12 @@ export default function SavedBookPage() {
     if (!isFullscreen) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsFullscreen(false);
-      if (e.key === "ArrowLeft") goTo(currentPage - 1);
-      if (e.key === "ArrowRight") goTo(currentPage + 1);
+      if (e.key === "ArrowLeft") goTo(currentSpread - 1);
+      if (e.key === "ArrowRight") goTo(currentSpread + 1);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [isFullscreen, currentPage, goTo]);
+  }, [isFullscreen, currentSpread, goTo]);
 
   const saveBook = useCallback(async (updated: SavedBook) => {
     setIsSaving(true);
@@ -497,9 +509,9 @@ export default function SavedBookPage() {
           </div>
         )}
 
-        {/* Book display */}
+        {/* Book display — layflat spread */}
         <div
-          className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden touch-pan-y relative group"
+          className="rounded-sm shadow-xl border border-stone-200/60 aspect-[2/1] w-full flex overflow-hidden touch-pan-y relative group"
           onTouchStart={(e) => {
             const t = e.touches[0];
             touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -511,18 +523,40 @@ export default function SavedBookPage() {
             const dy = t.clientY - touchStartRef.current.y;
             touchStartRef.current = null;
             if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-              if (dx < 0) goTo(currentPage + 1);
-              else goTo(currentPage - 1);
+              if (dx < 0) goTo(currentSpread + 1);
+              else goTo(currentSpread - 1);
             }
           }}
         >
-          <div key={currentPage} className={`flex-1 min-h-0 ${animClass}`}>
-            {renderPage(pages[currentPage])}
-          </div>
+          {(() => {
+            const [leftIdx, rightIdx] = spreads[currentSpread] || [null, null];
+            return (
+              <div key={currentSpread} className={`flex flex-1 min-h-0 ${animClass}`}>
+                {/* Left page */}
+                <div className="flex-1 book-page overflow-hidden">
+                  {leftIdx !== null ? (
+                    <div className="h-full">{renderPage(pages[leftIdx])}</div>
+                  ) : (
+                    <div className="h-full book-endpaper" />
+                  )}
+                </div>
+                {/* Binding seam */}
+                <div className="book-seam" />
+                {/* Right page */}
+                <div className="flex-1 book-page overflow-hidden">
+                  {rightIdx !== null ? (
+                    <div className="h-full">{renderPage(pages[rightIdx])}</div>
+                  ) : (
+                    <div className="h-full book-endpaper" />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {/* Fullscreen button */}
           <button
             onClick={() => setIsFullscreen(true)}
-            className="absolute top-3 right-3 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-3 right-3 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10"
             aria-label="View fullscreen"
             title="View fullscreen"
           >
@@ -535,23 +569,30 @@ export default function SavedBookPage() {
         {/* Page navigation */}
         <div className="flex items-center justify-center gap-6 mt-5">
           <button
-            onClick={() => goTo(currentPage - 1)}
-            disabled={currentPage === 0}
+            onClick={() => goTo(currentSpread - 1)}
+            disabled={currentSpread === 0}
             className="text-stone-400 hover:text-stone-800 disabled:opacity-20 transition-colors px-2 py-1"
-            aria-label="Previous page"
+            aria-label="Previous spread"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M13 4L7 10L13 16" />
             </svg>
           </button>
           <span className="text-xs text-stone-400 book-sans tracking-widest tabular-nums">
-            {currentPage + 1} / {pages.length}
+            {(() => {
+              const [leftIdx, rightIdx] = spreads[currentSpread] || [null, null];
+              if (leftIdx === null && rightIdx !== null) return `${rightIdx + 1}`;
+              if (leftIdx !== null && rightIdx === null) return `${leftIdx + 1}`;
+              if (leftIdx !== null && rightIdx !== null) return `${leftIdx + 1}–${rightIdx + 1}`;
+              return "";
+            })()}{" "}
+            / {pages.length}
           </span>
           <button
-            onClick={() => goTo(currentPage + 1)}
-            disabled={currentPage === pages.length - 1}
+            onClick={() => goTo(currentSpread + 1)}
+            disabled={currentSpread === totalSpreads - 1}
             className="text-stone-400 hover:text-stone-800 disabled:opacity-20 transition-colors px-2 py-1"
-            aria-label="Next page"
+            aria-label="Next spread"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M7 4L13 10L7 16" />
@@ -644,30 +685,56 @@ export default function SavedBookPage() {
                 <path d="M6 2v4H2M14 2v4h4M14 18v-4h4M6 18v-4H2" />
               </svg>
             </button>
-            <div className="book-page rounded-sm aspect-[4/3] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden mx-4">
-              <div key={`fs-${currentPage}`} className={`flex-1 min-h-0 ${animClass}`}>
-                {renderPage(pages[currentPage])}
-              </div>
+            <div className="rounded-sm aspect-[2/1] w-full max-w-6xl max-h-[90vh] flex overflow-hidden mx-4">
+              {(() => {
+                const [leftIdx, rightIdx] = spreads[currentSpread] || [null, null];
+                return (
+                  <div key={`fs-${currentSpread}`} className={`flex flex-1 min-h-0 ${animClass}`}>
+                    <div className="flex-1 book-page overflow-hidden">
+                      {leftIdx !== null ? (
+                        <div className="h-full">{renderPage(pages[leftIdx])}</div>
+                      ) : (
+                        <div className="h-full book-endpaper" />
+                      )}
+                    </div>
+                    <div className="book-seam" />
+                    <div className="flex-1 book-page overflow-hidden">
+                      {rightIdx !== null ? (
+                        <div className="h-full">{renderPage(pages[rightIdx])}</div>
+                      ) : (
+                        <div className="h-full book-endpaper" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex items-center justify-center gap-8 mt-6">
               <button
-                onClick={() => goTo(currentPage - 1)}
-                disabled={currentPage === 0}
+                onClick={() => goTo(currentSpread - 1)}
+                disabled={currentSpread === 0}
                 className="text-white/50 hover:text-white disabled:opacity-20 transition-colors px-3 py-2"
-                aria-label="Previous page"
+                aria-label="Previous spread"
               >
                 <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M13 4L7 10L13 16" />
                 </svg>
               </button>
               <span className="text-sm text-white/50 book-sans tracking-widest tabular-nums">
-                {currentPage + 1} / {pages.length}
+                {(() => {
+                  const [leftIdx, rightIdx] = spreads[currentSpread] || [null, null];
+                  if (leftIdx === null && rightIdx !== null) return `${rightIdx + 1}`;
+                  if (leftIdx !== null && rightIdx === null) return `${leftIdx + 1}`;
+                  if (leftIdx !== null && rightIdx !== null) return `${leftIdx + 1}–${rightIdx + 1}`;
+                  return "";
+                })()}{" "}
+                / {pages.length}
               </span>
               <button
-                onClick={() => goTo(currentPage + 1)}
-                disabled={currentPage === pages.length - 1}
+                onClick={() => goTo(currentSpread + 1)}
+                disabled={currentSpread === totalSpreads - 1}
                 className="text-white/50 hover:text-white disabled:opacity-20 transition-colors px-3 py-2"
-                aria-label="Next page"
+                aria-label="Next spread"
               >
                 <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M7 4L13 10L7 16" />

@@ -41,10 +41,17 @@ export async function POST(req: NextRequest) {
     let prompt: string;
 
     if (generateInitial) {
-      prompt = `You are a premium photo book designer creating an Artifact Uprising-quality layout. Design a beautiful, elevated photo book from these curated photos.
+      prompt = `You are a premium photo book designer creating an Artifact Uprising-quality layout for a LAYFLAT photo book. Design a beautiful, elevated photo book from these curated photos.
 
 CREATOR'S VISION (from interview):
 ${interviewAnswers.summary}
+
+LAYFLAT BOOK FORMAT:
+This book is displayed as a layflat photo book — pages are shown as two-page spreads (left + right) with a binding seam down the middle.
+- The COVER (page 1) appears alone on the right side of the first spread, with a blank endpaper on the left.
+- After the cover, pages are paired: pages 2–3 form a spread, pages 4–5 form a spread, etc.
+- THINK IN SPREADS: When designing, consider how facing pages complement each other. Don't put two visually heavy layouts facing each other. Balance a busy page (grid, spread) with a calmer one (single, panoramic). Each spread should feel intentional.
+- AIM FOR AN ODD total page count (so the last page sits alone on the left with a blank endpaper on the right, creating a clean ending).
 
 AVAILABLE PAGE LAYOUTS:
 - "cover" — 1 photo + title/subtitle. The opening impression. Pick the single most iconic, emotionally powerful shot.
@@ -55,23 +62,23 @@ AVAILABLE PAGE LAYOUTS:
 - "grid" — 3 photos: one large on top, two smaller below. Use for showing variety within a scene or moment. All 3 photos should feel cohesive.
 - "offset" — 1 photo positioned to the left, caption beside it on the right. Creates an editorial magazine feel. Use when the caption text is meaningful and adds to the story.
 - "duo-stacked" — 2 photos stacked vertically. Different from spread. Good for portrait-oriented photos or creating a before/after or time-lapse feel.
-- "text-page" — No photos. A chapter title, pull-quote, or emotional statement. Use textContent for the main text, subtitle for attribution. These create breathing room in the book. Use 1-2 max.
 - "closing" — 1 photo + reflective caption. The emotional ending. Pick a contemplative, resonant final image.
 
 DESIGN PRINCIPLES (Artifact Uprising style):
-1. VARIETY IS ESSENTIAL: Never use the same layout type twice in a row. Alternate between single, spread, grid, offset, etc.
-2. PACING: Create visual rhythm — a full-bleed dramatic shot followed by a quiet single, then a lively grid. Like music, vary the energy.
-3. BREATHING ROOM: Include 1-2 text-pages as chapter breaks or emotional pauses.
-4. WHITESPACE: Many layouts have generous margins. This is intentional. The space makes the photos feel special.
-5. CAPTIONS: LESS IS MORE. Most pages should have caption set to null. Only add a caption when it truly adds emotional context — never describe what's visible in the photo. When you do write one, keep it very short (under 10 words). The photos should speak for themselves.
-6. NARRATIVE ARC: Structure the book with a beginning (cover, establishing shots), middle (the heart of the story), and end (reflection, closing).
-7. SELECT 15-25 photos. Never use the same photo twice. Never use near-duplicate scenes.
-8. AIM FOR 10-16 pages total.
-9. PHOTO SIZE IS PARAMOUNT: This is a PHOTO book. Photos should be large and immersive. Favor layouts that showcase photos at their biggest: full-bleed, single, panoramic. Use grid and duo-stacked sparingly — tiny photos are hard to see and feel underwhelming. When you do use multi-photo layouts, make sure the photos are large enough to appreciate.
-10. Prefer "full-bleed" and "single" layouts over "grid" and "duo-stacked". Use at most 1 grid page and at most 1 duo-stacked page in the whole book.
+1. EVERY PAGE MUST HAVE AT LEAST ONE PHOTO. No text-only pages. This is a photo book — every single page should feature photography.
+2. VARIETY IS ESSENTIAL: Never use the same layout type twice in a row. Alternate between single, spread, grid, offset, etc.
+3. PACING: Create visual rhythm — a full-bleed dramatic shot followed by a quiet single, then a lively grid. Like music, vary the energy.
+4. SPREAD HARMONY: Think about how left and right pages look together. A full-bleed on the left with a quiet single on the right creates beautiful contrast. Two grids facing each other feels cluttered.
+5. WHITESPACE: Many layouts have generous margins. This is intentional. The space makes the photos feel special.
+6. CAPTIONS: LESS IS MORE. Most pages should have caption set to null. Only add a caption when it truly adds emotional context — never describe what's visible in the photo. When you do write one, keep it very short (under 10 words). The photos should speak for themselves.
+7. NARRATIVE ARC: Structure the book with a beginning (cover, establishing shots), middle (the heart of the story), and end (reflection, closing).
+8. SELECT 15-25 photos. Never use the same photo twice. Never use near-duplicate scenes.
+9. AIM FOR 11-17 pages total (odd numbers preferred for clean ending).
+10. PHOTO SIZE IS PARAMOUNT: This is a PHOTO book. Photos should be large and immersive. Favor layouts that showcase photos at their biggest: full-bleed, single, panoramic. Use grid and duo-stacked sparingly — tiny photos are hard to see and feel underwhelming.
+11. Prefer "full-bleed" and "single" layouts over "grid" and "duo-stacked". Use at most 1 grid page and at most 1 duo-stacked page in the whole book.
 
-EXAMPLE SEQUENCE for rhythm:
-cover → single → spread → text-page → full-bleed → offset → grid → single → panoramic → duo-stacked → single → closing
+EXAMPLE SEQUENCE (thinking in spreads):
+Spread 1: [endpaper | cover] → Spread 2: [single | full-bleed] → Spread 3: [panoramic | offset] → Spread 4: [spread | single] → Spread 5: [grid | single] → Spread 6: [duo-stacked | panoramic] → Spread 7: [closing | endpaper]
 
 Return a JSON object:
 {
@@ -81,18 +88,18 @@ Return a JSON object:
   "pages": [
     {"id": "page_1", "type": "cover", "photoIds": ["id"], "caption": null},
     {"id": "page_2", "type": "single", "photoIds": ["id"], "caption": "..."},
-    {"id": "page_3", "type": "text-page", "photoIds": [], "textContent": "Chapter text or quote", "subtitle": "optional attribution"},
+    {"id": "page_3", "type": "full-bleed", "photoIds": ["id"], "caption": null},
     {"id": "page_4", "type": "spread", "photoIds": ["id1", "id2"], "caption": "..."},
-    {"id": "page_5", "type": "full-bleed", "photoIds": ["id"], "caption": "..."},
+    {"id": "page_5", "type": "panoramic", "photoIds": ["id"], "caption": null},
     {"id": "page_6", "type": "grid", "photoIds": ["id1", "id2", "id3"], "caption": null},
-    {"id": "page_7", "type": "offset", "photoIds": ["id"], "caption": "A longer, more editorial caption that tells part of the story..."},
-    {"id": "page_8", "type": "panoramic", "photoIds": ["id"], "caption": "..."},
-    {"id": "page_9", "type": "duo-stacked", "photoIds": ["id1", "id2"], "caption": null},
+    {"id": "page_7", "type": "offset", "photoIds": ["id"], "caption": "A longer, more editorial caption..."},
+    {"id": "page_8", "type": "duo-stacked", "photoIds": ["id1", "id2"], "caption": null},
+    {"id": "page_9", "type": "single", "photoIds": ["id"], "caption": null},
     {"id": "page_N", "type": "closing", "photoIds": ["id"], "caption": "Reflective ending"}
   ]
 }
 
-CRITICAL: Use at least 5 DIFFERENT layout types. Do NOT fall back to mostly "single" pages. Mix it up!
+CRITICAL: Use at least 5 DIFFERENT layout types. Do NOT fall back to mostly "single" pages. Mix it up! Every page MUST have at least one photo in photoIds.
 
 Return ONLY the JSON object.`;
     } else {
@@ -104,7 +111,9 @@ The user wants to make this edit: "${instruction}"
 CREATOR'S ORIGINAL VISION:
 ${interviewAnswers.summary}
 
-AVAILABLE LAYOUT TYPES: cover, full-bleed, spread, single, panoramic, grid, offset, duo-stacked, text-page, closing
+LAYFLAT BOOK FORMAT: Pages are displayed as two-page spreads. Page 1 (cover) is on the right of the first spread. Then pages 2-3 are a spread, 4-5 are a spread, etc. Consider how facing pages complement each other.
+
+AVAILABLE LAYOUT TYPES: cover, full-bleed, spread, single, panoramic, grid, offset, duo-stacked, closing
 
 Modify the book to fulfill the user's request. You can:
 - Swap photos (use available photo IDs from the images shown above)
@@ -112,10 +121,11 @@ Modify the book to fulfill the user's request. You can:
 - Change page layout types for better variety
 - Rewrite captions (keep them emotional, not descriptive)
 - Change title/subtitle
-- Add text-pages as chapter breaks
+- EVERY page MUST have at least one photo — no text-only pages
 - NEVER use the same photo on multiple pages
 - NEVER use the same layout type twice in a row
 - When swapping, pick a photo that is VISUALLY DIFFERENT from what was there before
+- Consider spread harmony: facing pages should complement, not compete
 
 Return the COMPLETE updated book as a JSON object with the same structure.
 Return ONLY the JSON object.`;
