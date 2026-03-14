@@ -190,6 +190,11 @@ export default function Interview() {
           .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
           .join("\n\n");
 
+        // Extract target photo count from the photo_count answer
+        const photoCountAnswer = finalAnswers["photo_count"] || "";
+        const countMatch = photoCountAnswer.match(/~(\d+)\s*photos/);
+        const targetPhotoCount = countMatch ? parseInt(countMatch[1], 10) : undefined;
+
         // Store background scores if available
         if (backgroundScoresRef.current.length > 0) {
           dispatch({ type: "SET_PHOTO_SCORES", scores: backgroundScoresRef.current });
@@ -197,7 +202,7 @@ export default function Interview() {
 
         dispatch({
           type: "SET_INTERVIEW_ANSWERS",
-          answers: { qaPairs, summary },
+          answers: { qaPairs, summary, targetPhotoCount },
         });
         dispatch({ type: "SET_STEP", step: "curating" });
       }, 2000);

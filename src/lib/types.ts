@@ -51,6 +51,7 @@ export interface InterviewQA {
 export interface InterviewAnswers {
   qaPairs: InterviewQA[];
   summary: string; // formatted for downstream prompts
+  targetPhotoCount?: number; // user's requested number of photos
 }
 
 export type AppStep = "upload" | "interview" | "curating" | "book" | "editing";

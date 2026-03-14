@@ -98,6 +98,11 @@ export default function CurationProgress() {
     async function curate() {
       if (!state.interviewAnswers) return;
 
+      // Use the user's requested photo count, default to 30
+      const targetCount = state.interviewAnswers.targetPhotoCount || 30;
+      // Shortlist should be ~1.5x the target to give the second pass enough to work with
+      const shortlistSize = Math.max(targetCount, Math.round(targetCount * 1.5));
+
       try {
         const thumbnails = state.photos.map((p) => ({
           id: p.id,
@@ -155,7 +160,7 @@ export default function CurationProgress() {
 
         const sortedScores = [...allFirstPassScores].sort((a, b) => b.score - a.score);
         const shortlistIds = new Set(
-          sortedScores.slice(0, Math.min(40, sortedScores.length)).map((s) => s.photoId)
+          sortedScores.slice(0, Math.min(shortlistSize, sortedScores.length)).map((s) => s.photoId)
         );
         const shortlistThumbnails = thumbnails.filter((t) => shortlistIds.has(t.id));
 
@@ -205,7 +210,7 @@ export default function CurationProgress() {
 
         const topPhotos = [...allSecondPassScores]
           .sort((a, b) => b.score - a.score)
-          .slice(0, 30);
+          .slice(0, targetCount);
 
         const availablePhotos = topPhotos
           .map((s) => {

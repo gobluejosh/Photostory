@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
     } = await req.json();
 
     const imageContent: Anthropic.Messages.ContentBlockParam[] = [];
-    const photosToShow = availablePhotos.slice(0, 30);
+    const targetCount = interviewAnswers?.targetPhotoCount || 30;
+    const photosToShow = availablePhotos.slice(0, targetCount);
 
     for (const photo of photosToShow) {
       const score = (photoScores as PhotoScore[]).find(
@@ -72,8 +73,8 @@ DESIGN PRINCIPLES (Artifact Uprising style):
 5. WHITESPACE: Many layouts have generous margins. This is intentional. The space makes the photos feel special.
 6. CAPTIONS: LESS IS MORE. Most pages should have caption set to null. Only add a caption when it truly adds emotional context — never describe what's visible in the photo. When you do write one, keep it very short (under 10 words). The photos should speak for themselves.
 7. NARRATIVE ARC: Structure the book with a beginning (cover, establishing shots), middle (the heart of the story), and end (reflection, closing).
-8. SELECT 15-25 photos. Never use the same photo twice. Never use near-duplicate scenes.
-9. AIM FOR 11-17 pages total (odd numbers preferred for clean ending).
+8. SELECT approximately ${targetCount} photos. Never use the same photo twice. Never use near-duplicate scenes.
+9. AIM FOR ${Math.max(7, Math.round(targetCount * 0.7))}-${Math.round(targetCount * 1.1)} pages total (odd numbers preferred for clean ending).
 10. PHOTO SIZE IS PARAMOUNT: This is a PHOTO book. Photos should be large and immersive. Favor layouts that showcase photos at their biggest: full-bleed, single, panoramic. Use grid and duo-stacked sparingly — tiny photos are hard to see and feel underwhelming.
 11. Prefer "full-bleed" and "single" layouts over "grid" and "duo-stacked". Use at most 1 grid page and at most 1 duo-stacked page in the whole book.
 
