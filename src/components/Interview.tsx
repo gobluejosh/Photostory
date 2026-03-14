@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useApp } from "@/lib/store";
 
 interface Question {
   id: string;
   question: string;
+  options?: string[]; // If present, render as multiple-choice instead of free text
 }
 
 const fallbackQuestions: Question[] = [
@@ -21,6 +22,9 @@ export default function Interview() {
   const [currentQ, setCurrentQ] = useState(0);
   const [loading, setLoading] = useState(true);
   const [inputValue, setInputValue] = useState("");
+  const [animating, setAnimating] = useState(false);
+  const [cardState, setCardState] = useState<"enter" | "exit">("enter");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sample photos sent to the API (up to 12 evenly spaced)
   const samplePhotos = useMemo(() => {
@@ -30,6 +34,22 @@ export default function Interview() {
       (_, i) => state.photos[Math.min(i * step, state.photos.length - 1)]
     );
   }, [state.photos]);
+
+  // Build the photo count question based on how many photos were uploaded
+  const photoCountQuestion = useMemo((): Question => {
+    const count = state.photos.length;
+    const highlights = Math.max(10, Math.round(count * 0.3));
+    const most = Math.round(count * 0.7);
+    return {
+      id: "photo_count",
+      question: `You uploaded ${count} photos. How many would you like in the book?`,
+      options: [
+        `Just the highlights (~${highlights} photos)`,
+        `A good selection (~${most} photos)`,
+        `Include them all (~${count} photos)`,
+      ],
+    };
+  }, [state.photos.length]);
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -47,18 +67,73 @@ export default function Interview() {
 
         const data = await res.json();
         if (data.questions && data.questions.length > 0) {
-          setQuestions(data.questions);
+          // Insert photo count question as question #2 (after the story question)
+          const aiQuestions: Question[] = data.questions;
+          aiQuestions.splice(1, 0, photoCountQuestion);
+          setQuestions(aiQuestions);
         } else {
-          setQuestions(fallbackQuestions);
+          const fallback = [...fallbackQuestions];
+          fallback.splice(1, 0, photoCountQuestion);
+          setQuestions(fallback);
         }
       } catch {
-        setQuestions(fallbackQuestions);
+        const fallback = [...fallbackQuestions];
+        fallback.splice(1, 0, photoCountQuestion);
+        setQuestions(fallback);
       } finally {
         setLoading(false);
       }
     }
     fetchQuestions();
-  }, [state.photos]);
+  }, [state.photos, samplePhotos, photoCountQuestion]);
+
+  const advanceToNext = (newAnswers: Record<string, string>) => {
+    if (currentQ < questions.length - 1) {
+      // Animate card out, then in
+      setAnimating(true);
+      setCardState("exit");
+      setTimeout(() => {
+        setCurrentQ((prev) => prev + 1);
+        setCardState("enter");
+        setTimeout(() => {
+          setAnimating(false);
+          textareaRef.current?.focus();
+        }, 400);
+      }, 300);
+    } else {
+      finishInterview(newAnswers);
+    }
+  };
+
+  const finishInterview = (finalAnswers: Record<string, string>) => {
+    const qaPairs = questions.map((q) => ({
+      question: q.question,
+      answer: finalAnswers[q.id] || "",
+    }));
+
+    // Resolve photo number references (e.g. "#5", "photo 5") to photo IDs
+    const resolvePhotoRefs = (text: string): string => {
+      return text.replace(
+        /(?:#|photo\s*)(\d+)/gi,
+        (match, numStr) => {
+          const idx = parseInt(numStr, 10) - 1;
+          if (idx >= 0 && idx < state.photos.length) {
+            return `${match} [id:${state.photos[idx].id}]`;
+          }
+          return match;
+        }
+      );
+    };
+
+    const summary = qaPairs
+      .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
+      .join("\n\n");
+    dispatch({
+      type: "SET_INTERVIEW_ANSWERS",
+      answers: { qaPairs, summary },
+    });
+    dispatch({ type: "SET_STEP", step: "curating" });
+  };
 
   const handleSubmitAnswer = () => {
     if (!inputValue.trim()) return;
@@ -66,40 +141,15 @@ export default function Interview() {
     const newAnswers = { ...answers, [q.id]: inputValue.trim() };
     setAnswers(newAnswers);
     setInputValue("");
+    advanceToNext(newAnswers);
+  };
 
-    if (currentQ < questions.length - 1) {
-      setCurrentQ(currentQ + 1);
-    } else {
-      // Build Q&A pairs and a formatted summary for downstream prompts
-      const qaPairs = questions.map((q) => ({
-        question: q.question,
-        answer: newAnswers[q.id] || "",
-      }));
-
-      // Resolve photo number references (e.g. "#5", "photo 5") to photo IDs
-      // so the curation step can match them to specific photos
-      const resolvePhotoRefs = (text: string): string => {
-        return text.replace(
-          /(?:#|photo\s*)(\d+)/gi,
-          (match, numStr) => {
-            const idx = parseInt(numStr, 10) - 1;
-            if (idx >= 0 && idx < state.photos.length) {
-              return `${match} [id:${state.photos[idx].id}]`;
-            }
-            return match;
-          }
-        );
-      };
-
-      const summary = qaPairs
-        .map((qa) => `Q: ${qa.question}\nA: ${resolvePhotoRefs(qa.answer)}`)
-        .join("\n\n");
-      dispatch({
-        type: "SET_INTERVIEW_ANSWERS",
-        answers: { qaPairs, summary },
-      });
-      dispatch({ type: "SET_STEP", step: "curating" });
-    }
+  const handleOptionSelect = (option: string) => {
+    if (animating) return;
+    const q = questions[currentQ];
+    const newAnswers = { ...answers, [q.id]: option };
+    setAnswers(newAnswers);
+    advanceToNext(newAnswers);
   };
 
   if (loading) {
@@ -112,17 +162,29 @@ export default function Interview() {
     );
   }
 
+  const currentQuestion = questions[currentQ];
+  const isOptionQuestion = !!currentQuestion?.options;
+
   return (
     <div className="flex flex-col w-full max-w-lg mx-auto px-4">
-      <div className="text-center mb-4">
-        <h2 className="text-2xl font-light mb-1">Tell me about these photos</h2>
-        <p className="text-gray-400 text-xs">
-          {currentQ + 1} of {questions.length}
-        </p>
+      {/* Progress dots */}
+      <div className="flex items-center justify-center gap-2 mb-6">
+        {questions.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              i < currentQ
+                ? "w-1.5 bg-black"
+                : i === currentQ
+                  ? "w-6 bg-black"
+                  : "w-1.5 bg-gray-200"
+            }`}
+          />
+        ))}
       </div>
 
       {/* Numbered thumbnail strip — shows ALL photos so user can reference any by # */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-6 -mx-1 px-1 scrollbar-thin">
+      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1 scrollbar-thin">
         {state.photos.map((photo, i) => (
           <div key={photo.id} className="relative shrink-0">
             <img
@@ -136,55 +198,70 @@ export default function Interview() {
           </div>
         ))}
       </div>
-      <p className="text-gray-400 text-[10px] text-center -mt-4 mb-4">
+      <p className="text-gray-400 text-[10px] text-center mb-6">
         Scroll to see all {state.photos.length} photos — reference any by #
       </p>
 
-      {/* Chat-like display of previous answers */}
-      <div className="flex flex-col gap-4 mb-8">
-        {questions.slice(0, currentQ + 1).map((q, i) => (
-          <div key={q.id}>
-            <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%]">
-              {q.question}
-            </div>
-            {answers[q.id] && (
-              <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm max-w-[85%] ml-auto mt-2">
-                {answers[q.id]}
-              </div>
-            )}
+      {/* Question card */}
+      <div
+        key={currentQ}
+        className={`bg-white rounded-2xl shadow-lg border border-gray-100 px-6 py-8 ${cardState === "enter" ? "card-enter" : "card-exit"}`}
+      >
+        <p className="text-lg font-medium text-gray-900 leading-snug mb-6">
+          {currentQuestion.question}
+        </p>
+
+        {isOptionQuestion ? (
+          <div className="flex flex-col gap-2.5">
+            {currentQuestion.options!.map((option) => (
+              <button
+                key={option}
+                onClick={() => handleOptionSelect(option)}
+                disabled={animating}
+                className="text-left border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 active:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                {option}
+              </button>
+            ))}
           </div>
-        ))}
+        ) : (
+          <div className="flex gap-2 items-end">
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmitAnswer();
+                }
+              }}
+              placeholder="Type your answer..."
+              rows={1}
+              disabled={animating}
+              className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-gray-400 resize-none overflow-hidden disabled:opacity-50"
+              style={{ fontSize: "16px" }}
+              autoFocus
+            />
+            <button
+              onClick={handleSubmitAnswer}
+              disabled={!inputValue.trim() || animating}
+              className="bg-black text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-30 hover:bg-gray-800 transition-colors shrink-0"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Input */}
-      <div className="flex gap-2 mt-auto items-end">
-        <textarea
-          value={inputValue}
-          onChange={(e) => {
-            setInputValue(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = e.target.scrollHeight + "px";
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmitAnswer();
-            }
-          }}
-          placeholder="Type your answer..."
-          rows={1}
-          className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-gray-400 resize-none overflow-hidden"
-          style={{ fontSize: "16px" }}
-          autoFocus
-        />
-        <button
-          onClick={handleSubmitAnswer}
-          disabled={!inputValue.trim()}
-          className="bg-black text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-30 hover:bg-gray-800 transition-colors shrink-0"
-        >
-          Send
-        </button>
-      </div>
+      {/* Question counter */}
+      <p className="text-gray-400 text-xs text-center mt-4">
+        {currentQ + 1} of {questions.length}
+      </p>
 
       <button
         onClick={() => dispatch({ type: "SET_STEP", step: "upload" })}
