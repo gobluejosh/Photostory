@@ -20,6 +20,8 @@ export default function SavedBookPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [shareLabel, setShareLabel] = useState("Share link");
+  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const addPhotosRef = useRef<HTMLInputElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -48,6 +50,18 @@ export default function SavedBookPage() {
     },
     [currentPage, savedBook]
   );
+
+  // Escape key exits fullscreen, arrow keys navigate
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+      if (e.key === "ArrowLeft") goTo(currentPage - 1);
+      if (e.key === "ArrowRight") goTo(currentPage + 1);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isFullscreen, currentPage, goTo]);
 
   const saveBook = useCallback(async (updated: SavedBook) => {
     setIsSaving(true);
@@ -115,6 +129,28 @@ export default function SavedBookPage() {
 
       const data = await res.json();
       if (data.book) {
+        // Determine which pages changed
+        const oldPages = savedBook.book.pages;
+        const newPages = data.book.pages;
+        const changedPages: number[] = [];
+        const maxLen = Math.max(oldPages.length, newPages.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i >= oldPages.length || i >= newPages.length || JSON.stringify(oldPages[i]) !== JSON.stringify(newPages[i])) {
+            changedPages.push(i + 1);
+          }
+        }
+        let msg = "Book updated";
+        if (newPages.length !== oldPages.length) {
+          msg = `Book updated — now ${newPages.length} pages (was ${oldPages.length})`;
+        } else if (changedPages.length > 0) {
+          const pageList = changedPages.length <= 4
+            ? changedPages.join(", ")
+            : changedPages.slice(0, 3).join(", ") + ` + ${changedPages.length - 3} more`;
+          msg = `Updated page${changedPages.length > 1 ? "s" : ""} ${pageList}`;
+        }
+        setEditMessage(msg);
+        setTimeout(() => setEditMessage(null), 4000);
+
         const usedPhotoIds = [...new Set(data.book.pages.flatMap((p: BookPage) => p.photoIds))];
         const updated: SavedBook = {
           ...savedBook,
@@ -452,9 +488,18 @@ export default function SavedBookPage() {
           </div>
         </div>
 
+        {/* Edit toast */}
+        {editMessage && (
+          <div className="mb-3 text-center animate-in fade-in slide-in-from-top-2">
+            <span className="inline-block bg-stone-800 text-white text-xs book-sans px-4 py-2 rounded-full">
+              {editMessage}
+            </span>
+          </div>
+        )}
+
         {/* Book display */}
         <div
-          className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden touch-pan-y"
+          className="book-page rounded-sm shadow-xl border border-stone-200/60 aspect-[4/3] w-full flex flex-col overflow-hidden touch-pan-y relative group"
           onTouchStart={(e) => {
             const t = e.touches[0];
             touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -474,6 +519,17 @@ export default function SavedBookPage() {
           <div key={currentPage} className={`flex-1 min-h-0 ${animClass}`}>
             {renderPage(pages[currentPage])}
           </div>
+          {/* Fullscreen button */}
+          <button
+            onClick={() => setIsFullscreen(true)}
+            className="absolute top-3 right-3 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label="View fullscreen"
+            title="View fullscreen"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+            </svg>
+          </button>
         </div>
 
         {/* Page navigation */}
@@ -575,6 +631,51 @@ export default function SavedBookPage() {
             {shareLabel}
           </button>
         </div>
+
+        {/* Fullscreen overlay */}
+        {isFullscreen && (
+          <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-colors z-10"
+              aria-label="Exit fullscreen"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 2v4H2M14 2v4h4M14 18v-4h4M6 18v-4H2" />
+              </svg>
+            </button>
+            <div className="book-page rounded-sm aspect-[4/3] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden mx-4">
+              <div key={`fs-${currentPage}`} className={`flex-1 min-h-0 ${animClass}`}>
+                {renderPage(pages[currentPage])}
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-8 mt-6">
+              <button
+                onClick={() => goTo(currentPage - 1)}
+                disabled={currentPage === 0}
+                className="text-white/50 hover:text-white disabled:opacity-20 transition-colors px-3 py-2"
+                aria-label="Previous page"
+              >
+                <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M13 4L7 10L13 16" />
+                </svg>
+              </button>
+              <span className="text-sm text-white/50 book-sans tracking-widest tabular-nums">
+                {currentPage + 1} / {pages.length}
+              </span>
+              <button
+                onClick={() => goTo(currentPage + 1)}
+                disabled={currentPage === pages.length - 1}
+                className="text-white/50 hover:text-white disabled:opacity-20 transition-colors px-3 py-2"
+                aria-label="Next page"
+              >
+                <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M7 4L13 10L7 16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Rejected photos panel */}
         {rejectedPhotos.length > 0 && (
