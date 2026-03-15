@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { PhotoBook, PhotoScore } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const client = new Anthropic();
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       });
       imageContent.push({
         type: "text",
-        text: `[Photo ID: ${photo.id}] Score: ${score?.score || "N/A"} | ${score?.reason || ""} | Tags: ${score?.tags?.join(", ") || ""} | Content: ${(score as PhotoScore & { contentHash?: string })?.contentHash || ""}`,
+        text: `[Photo ID: ${photo.id}] Score: ${score?.score || "N/A"} | ${score?.reason || ""} | Tags: ${score?.tags?.join(", ") || ""}`,
       });
     }
 

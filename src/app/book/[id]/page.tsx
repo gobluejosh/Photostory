@@ -198,7 +198,7 @@ export default function SavedBookPage() {
           id: p.id,
           dataUrl: p.thumbnailDataUrl,
         }));
-        let newScores: { photoId: string; score: number; reason: string; tags: string[]; contentHash: string }[] = [];
+        let newScores: { photoId: string; score: number; reason: string; tags: string[] }[] = [];
         try {
           const res = await fetch("/api/curate", {
             method: "POST",
@@ -206,7 +206,6 @@ export default function SavedBookPage() {
             body: JSON.stringify({
               thumbnails,
               interviewAnswers: { summary: savedBook.interviewSummary },
-              pass: "first",
             }),
           });
           const data = await res.json();
@@ -220,7 +219,6 @@ export default function SavedBookPage() {
             score: 7,
             reason: "Newly added photo (not scored)",
             tags: ["added"],
-            contentHash: `new_${p.id}`,
           }));
         }
 

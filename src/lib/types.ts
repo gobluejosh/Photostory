@@ -14,7 +14,6 @@ export interface PhotoScore {
   score: number; // 1-10
   reason: string;
   tags: string[];
-  contentHash?: string;
 }
 
 export interface BookPage {

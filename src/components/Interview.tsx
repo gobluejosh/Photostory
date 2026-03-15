@@ -1,20 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useApp } from "@/lib/store";
 
 interface Question {
   id: string;
   question: string;
   options?: string[]; // If present, render as multiple-choice instead of free text
-}
-
-interface ScoreResult {
-  photoId: string;
-  score: number;
-  reason: string;
-  tags: string[];
-  contentHash: string;
 }
 
 const fallbackQuestions: Question[] = [
@@ -34,10 +26,6 @@ export default function Interview() {
   const [cardState, setCardState] = useState<"enter" | "exit">("enter");
   const [finishing, setFinishing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Background scoring state
-  const backgroundScoresRef = useRef<ScoreResult[]>([]);
-  const scoringDoneRef = useRef(false);
 
   // Sample photos sent to the API (up to 12 evenly spaced)
   const samplePhotos = useMemo(() => {
@@ -63,43 +51,6 @@ export default function Interview() {
       ],
     };
   }, [state.photos.length]);
-
-  // --- Background Pass 1 scoring (runs during the interview) ---
-  const startBackgroundScoring = useCallback(async () => {
-    const thumbnails = state.photos.map((p) => ({
-      id: p.id,
-      dataUrl: p.thumbnailDataUrl,
-    }));
-
-    const batchSize = 8;
-    const allScores: ScoreResult[] = [];
-
-    for (let i = 0; i < thumbnails.length; i += batchSize) {
-      const batch = thumbnails.slice(i, i + batchSize);
-      try {
-        const res = await fetch("/api/curate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            thumbnails: batch,
-            interviewAnswers: {
-              summary: "Score based on technical quality (sharpness, exposure, composition), emotional impact, and uniqueness. No specific creator context available yet — focus on identifying the strongest photos purely on merit.",
-            },
-            pass: "first",
-          }),
-        });
-        const data = await res.json();
-        if (data.scores) {
-          allScores.push(...data.scores);
-        }
-      } catch {
-        // Silently continue — CurationProgress will redo any missing scores
-      }
-    }
-
-    backgroundScoresRef.current = allScores;
-    scoringDoneRef.current = true;
-  }, [state.photos]);
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -135,10 +86,7 @@ export default function Interview() {
       }
     }
     fetchQuestions();
-
-    // Start background scoring in parallel with the interview
-    startBackgroundScoring();
-  }, [state.photos, samplePhotos, photoCountQuestion, startBackgroundScoring]);
+  }, [state.photos, samplePhotos, photoCountQuestion]);
 
   const advanceToNext = (newAnswers: Record<string, string>) => {
     if (currentQ < questions.length - 1) {
@@ -194,11 +142,6 @@ export default function Interview() {
         const photoCountAnswer = finalAnswers["photo_count"] || "";
         const countMatch = photoCountAnswer.match(/~(\d+)\s*photos/);
         const targetPhotoCount = countMatch ? parseInt(countMatch[1], 10) : undefined;
-
-        // Store background scores if available
-        if (backgroundScoresRef.current.length > 0) {
-          dispatch({ type: "SET_PHOTO_SCORES", scores: backgroundScoresRef.current });
-        }
 
         dispatch({
           type: "SET_INTERVIEW_ANSWERS",

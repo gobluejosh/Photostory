@@ -127,7 +127,6 @@ export default function BookViewer() {
             body: JSON.stringify({
               thumbnails,
               interviewAnswers: state.interviewAnswers,
-              pass: "first",
             }),
           });
           const data = await res.json();
@@ -141,7 +140,6 @@ export default function BookViewer() {
             score: 7,
             reason: "Newly added photo (not scored)",
             tags: ["added"],
-            contentHash: `new_${p.id}`,
           }));
         }
 
